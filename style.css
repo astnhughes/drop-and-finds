@@ -823,3 +823,58 @@ main {
 .bus-end   { fill: var(--text); }
 .bus-spot  { fill: var(--background); stroke: var(--text-dim); stroke-width: 3; opacity: 0.8; }
 .bus-spot.in { fill: var(--accent); stroke: var(--background); opacity: 1; }
+
+/* ---------- Drop log ---------- */
+.button-row { display: flex; gap: 8px; }
+.big-button.compact {
+  flex: 1;
+  min-height: 52px;
+  padding: 0 4px;
+  font-size: 16px;
+}
+.drop-panel { overflow-y: auto; max-height: 100%; }
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+.stepper .big-button { width: 72px; font-size: 30px; }
+.stepper-number { min-width: 60px; font-size: 40px; font-weight: 800; text-align: center; }
+
+.stats-card { max-width: 640px; }
+.stats-scroll { max-height: 52vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+.stats-table { width: 100%; border-collapse: collapse; font-size: 16px; }
+.stats-table th {
+  padding: 6px 8px;
+  text-align: right;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}
+.stats-table td { padding: 8px; text-align: right; border-top: 1px solid var(--background); }
+.stats-table th:first-child, .stats-table td:first-child { text-align: left; }
+.stats-table tr.best td { color: var(--accent); font-weight: 800; }
+
+.drops-list { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+.drop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 10px;
+  background: var(--background);
+  font-size: 15px;
+}
+.drop-row button {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 20px;
+}

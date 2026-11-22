@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=21">
+  <link rel="stylesheet" href="style.css?v=22">
 </head>
 <body>
   <header class="top-bar">
@@ -45,7 +45,12 @@
         <button id="skip" class="big-button" disabled>Skip this spot</button>
         <p id="skipped-note" class="hint" hidden></p>
         <button id="reset" class="small-button" hidden>Put all spots back</button>
-        <button id="bus-button" class="big-button">🚌 Bus route</button>
+        <!-- Three smaller buttons side by side -->
+        <div class="button-row">
+          <button id="bus-button" class="big-button compact">🚌 Bus</button>
+          <button id="log-button" class="big-button compact" disabled>📝 Log</button>
+          <button id="stats-button" class="big-button compact">📊 Stats</button>
+        </div>
         <p id="bus-note" class="hint" hidden></p>
         <button id="bus-clear" class="small-button" hidden>Clear bus route</button>
       </div>
@@ -202,6 +207,37 @@
       </div>
       <p class="fine-print">Video from YouTube, made by a fan channel. If an ad plays first, tap Skip when it appears.</p>
     </div>
+
+    <!-- The card for logging how a drop went -->
+    <div id="log-card" class="card" hidden>
+      <h2>How did it go?</h2>
+      <p class="card-text">Drop at <strong id="log-spot"></strong></p>
+      <p class="card-label">Eliminations</p>
+      <div class="stepper">
+        <button id="elims-down" class="big-button" aria-label="One fewer">−</button>
+        <span id="elims-count" class="stepper-number">0</span>
+        <button id="elims-up" class="big-button" aria-label="One more">+</button>
+      </div>
+      <p class="card-label">Where did you finish? (tap to save)</p>
+      <div id="place-buttons" class="category-buttons"></div>
+      <div class="card-actions">
+        <button id="log-cancel" class="big-button">Cancel</button>
+      </div>
+    </div>
+
+    <!-- The card showing which drop spots have gone best -->
+    <div id="stats-card" class="card stats-card" hidden>
+      <h2 id="stats-title">My drops</h2>
+      <p id="stats-summary" class="card-text"></p>
+      <div class="stats-scroll">
+        <table id="stats-table" class="stats-table"></table>
+        <p class="card-label">Latest drops</p>
+        <div id="drops-list" class="drops-list"></div>
+      </div>
+      <div class="card-actions">
+        <button id="stats-close" class="big-button primary">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- The two big buttons at the bottom that switch screens -->
@@ -212,6 +248,6 @@
     <button class="tab" data-screen="screen-shop">Shop</button>
   </nav>
 
-  <script src="app.js?v=21"></script>
+  <script src="app.js?v=22"></script>
 </body>
 </html>

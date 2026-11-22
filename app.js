@@ -138,6 +138,7 @@ function updateButtons() {
   spinButton.disabled = spinning || spotsOnWheel.length === 0;
   spinButton.textContent = chosenSpot ? 'Re-spin' : 'Spin';
   pickButton.disabled = !haveWinner;
+  document.getElementById('log-button').disabled = !haveWinner; // can log once the wheel has picked
   skipButton.disabled = !haveWinner || spotsOnWheel.length <= 1;
 
   // The bright button is the one you'll most likely want next:
@@ -765,7 +766,7 @@ function savePin() {
     editingPin.note = note;
   } else if (newPin) {
     pins.push({
-      id: 'p' + Date.now(),
+      id: 'p' + Date.now() + Math.random().toString(36).slice(2, 6),
       across: newPin.across,
       down: newPin.down,
       category: formCategory,
@@ -947,6 +948,155 @@ function updateSeason(version) {
   return newSeasonStarted;
 }
 
+// ---------- Drop log: how did each drop go? ----------
+// After a match, tap Log, set eliminations, and tap where you finished. Over time
+// the Stats card shows which drop spots have gone best.
+//
+// Each logged drop looks like:
+// { id: 'd1732300000000', spot: 'Loguetown', place: 'top10', elims: 3, when: '2026-11-22T20:15:00.000Z' }
+// and lives in its season, next to that season's pins.
+const PLACES = [
+  { id: 'win',   label: '🏆 Victory', points: 4 },
+  { id: 'top10', label: 'Top 10',     points: 3 },
+  { id: 'top25', label: 'Top 25',     points: 2 },
+  { id: 'early', label: 'Out early',  points: 1 },
+];
+
+const logCard = document.getElementById('log-card');
+const statsCard = document.getElementById('stats-card');
+const elimsCount = document.getElementById('elims-count');
+let logSpot = null;  // the spot being logged
+let logElims = 0;
+
+function seasonDrops(key) {
+  const season = data.seasons[key];
+  if (!Array.isArray(season.drops)) season.drops = [];
+  return season.drops;
+}
+
+function placeFor(id) {
+  return PLACES.find((place) => place.id === id) || PLACES[PLACES.length - 1];
+}
+
+function openLogCard() {
+  if (!chosenSpot || spinning) return;
+  logSpot = chosenSpot.name;
+  logElims = 0;
+  elimsCount.textContent = '0';
+  document.getElementById('log-spot').textContent = logSpot;
+  showCard(logCard);
+}
+
+function changeElims(by) {
+  logElims = clamp(logElims + by, 0, 99);
+  elimsCount.textContent = logElims;
+}
+
+// Tapping where you finished saves the drop straight away.
+function saveDrop(placeId) {
+  seasonDrops(data.currentSeason).push({
+    id: 'd' + Date.now() + Math.random().toString(36).slice(2, 6), // time plus a few random letters, so no two match
+    spot: logSpot,
+    place: placeId,
+    elims: logElims,
+    when: new Date().toISOString(),
+  });
+  saveData();
+  closeCards();
+  openStatsCard(); // show how that changed the standings
+}
+
+// Build the "where did you finish" buttons once.
+PLACES.forEach((place) => {
+  const button = document.createElement('button');
+  button.className = 'category-button';
+  button.textContent = place.label;
+  button.addEventListener('click', () => saveDrop(place.id));
+  document.getElementById('place-buttons').appendChild(button);
+});
+
+// Add up the drops for each spot: how many, wins, top 10s, average eliminations,
+// and an average score (Victory 4, Top 10 3, Top 25 2, Out early 1) used to rank them.
+function dropStats(drops) {
+  const bySpot = new Map();
+  drops.forEach((drop) => {
+    if (!bySpot.has(drop.spot)) bySpot.set(drop.spot, { spot: drop.spot, drops: 0, wins: 0, top10s: 0, elims: 0, points: 0 });
+    const row = bySpot.get(drop.spot);
+    row.drops += 1;
+    if (drop.place === 'win') row.wins += 1;
+    if (drop.place === 'win' || drop.place === 'top10') row.top10s += 1;
+    row.elims += drop.elims;
+    row.points += placeFor(drop.place).points;
+  });
+  return [...bySpot.values()]
+    .map((row) => ({ ...row, score: row.points / row.drops, avgElims: row.elims / row.drops }))
+    .sort((a, b) => b.score - a.score || b.avgElims - a.avgElims || b.drops - a.drops);
+}
+
+function openStatsCard() {
+  const drops = seasonDrops(data.currentSeason);
+  const rows = dropStats(drops);
+  const table = document.getElementById('stats-table');
+  const list = document.getElementById('drops-list');
+  const summary = document.getElementById('stats-summary');
+  document.getElementById('stats-title').textContent = 'My drops · ' + seasonName(data.currentSeason);
+  table.innerHTML = '';
+  list.innerHTML = '';
+
+  if (drops.length === 0) {
+    summary.textContent = 'No drops logged yet. Spin the wheel, play the match, then tap Log.';
+  } else {
+    const wins = drops.filter((drop) => drop.place === 'win').length;
+    summary.textContent = (drops.length === 1 ? '1 drop' : drops.length + ' drops') + ' logged, '
+      + (wins === 1 ? '1 Victory' : wins + ' Victories') + '. Best so far: ' + rows[0].spot + '.'
+      + (drops.length < 10 ? ' Log a few more before trusting the ranking.' : '');
+
+    const head = table.insertRow();
+    ['Spot', 'Drops', 'Wins', 'Top 10s', 'Avg elims'].forEach((title) => {
+      const cell = document.createElement('th');
+      cell.textContent = title;
+      head.appendChild(cell);
+    });
+    rows.forEach((row, index) => {
+      const line = table.insertRow();
+      if (index === 0) line.className = 'best';
+      [row.spot, row.drops, row.wins, row.top10s, row.avgElims.toFixed(1)].forEach((value) => {
+        line.insertCell().textContent = value;
+      });
+    });
+
+    // The ten latest drops, newest first, each with an ✕ to remove a mistake.
+    drops.slice().reverse().slice(0, 10).forEach((drop) => {
+      const row = document.createElement('div');
+      row.className = 'drop-row';
+      const text = document.createElement('span');
+      const day = new Date(drop.when);
+      text.textContent = drop.spot + ' · ' + placeFor(drop.place).label + ' · '
+        + (drop.elims === 1 ? '1 elim' : drop.elims + ' elims')
+        + (isNaN(day) ? '' : ' · ' + day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }));
+      const remove = document.createElement('button');
+      remove.textContent = '✕';
+      remove.setAttribute('aria-label', 'Remove this drop');
+      remove.addEventListener('click', () => {
+        const all = seasonDrops(data.currentSeason);
+        all.splice(all.indexOf(drop), 1);
+        saveData();
+        openStatsCard();
+      });
+      row.append(text, remove);
+      list.appendChild(row);
+    });
+  }
+  showCard(statsCard);
+}
+
+document.getElementById('log-button').addEventListener('click', openLogCard);
+document.getElementById('stats-button').addEventListener('click', openStatsCard);
+document.getElementById('elims-down').addEventListener('click', () => changeElims(-1));
+document.getElementById('elims-up').addEventListener('click', () => changeElims(1));
+document.getElementById('log-cancel').addEventListener('click', closeCards);
+document.getElementById('stats-close').addEventListener('click', closeCards);
+
 // ---------- Backup: Export and Import ----------
 const backupCard = document.getElementById('backup-card');
 const backupResult = document.getElementById('backup-result');
@@ -1052,6 +1202,21 @@ function importBackup(text) {
       data.seasons[target].spots = cleanSpots(theirs.spots);
     }
     const mine = data.seasons[target].pins;
+
+    // Logged drops come along too (again, only adding ones that aren't here already).
+    const myDrops = seasonDrops(target);
+    (Array.isArray(theirs.drops) ? theirs.drops : []).forEach((drop) => {
+      if (!drop || typeof drop.id !== 'string' || typeof drop.spot !== 'string') return;
+      if (!PLACES.some((place) => place.id === drop.place)) return;
+      if (myDrops.some((mine) => mine.id === drop.id)) return;
+      myDrops.push({
+        id: drop.id,
+        spot: drop.spot.slice(0, 80),
+        place: drop.place,
+        elims: clamp(Number(drop.elims) || 0, 0, 99),
+        when: typeof drop.when === 'string' ? drop.when : '',
+      });
+    });
 
     theirs.pins.forEach((pin) => {
       const clean = cleanPin(pin);

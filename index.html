@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=7">
+  <link rel="stylesheet" href="style.css?v=9">
 </head>
 <body>
   <header class="top-bar">
@@ -57,7 +57,20 @@
       </div>
 
       <!-- Filter buttons: show every pin, or just one kind. app.js fills this in. -->
-      <div id="filter-bar" class="filter-bar"></div>
+      <div class="filter-row">
+        <!-- Opens the list of seasons (today's map plus old ones) -->
+        <button id="season-button" class="chip season-chip">Season ▾</button>
+        <div id="filter-bar" class="filter-bar"></div>
+      </div>
+
+      <!-- Shows while looking at an old season's map -->
+      <div id="archive-banner" class="drop-banner" hidden>
+        <span>Looking at <strong id="archive-name"></strong> (old map)</span>
+        <button id="archive-back" class="small-button">Back to today's map</button>
+      </div>
+
+      <!-- Shows once when a new season starts -->
+      <p id="season-notice" class="notice" hidden></p>
 
       <div class="map-box">
         <!-- The window you look at the map through. It never changes size. -->
@@ -104,6 +117,15 @@
         <button id="pin-save" class="big-button primary" disabled>Save pin</button>
       </div>
     </div>
+
+    <!-- The card that lists every season -->
+    <div id="season-card" class="card" hidden>
+      <h2>Seasons</h2>
+      <div id="season-list" class="season-list"></div>
+      <div class="card-actions">
+        <button id="season-close" class="big-button">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- The two big buttons at the bottom that switch screens -->
@@ -112,6 +134,6 @@
     <button class="tab" data-screen="screen-finds">My Finds</button>
   </nav>
 
-  <script src="app.js?v=7"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>

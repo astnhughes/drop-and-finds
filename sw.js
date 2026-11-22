@@ -7,6 +7,7 @@
 
 const SAVED_COPIES = 'drop-and-finds-saved';
 const MAP_SERVICE = 'https://fortnite-api.com';
+const MAP_PICTURES = MAP_SERVICE + '/images/';
 
 // Start working straight away instead of waiting for the app to be reopened.
 self.addEventListener('install', () => self.skipWaiting());
@@ -20,8 +21,32 @@ self.addEventListener('fetch', (event) => {
   const mapService = request.url.startsWith(MAP_SERVICE);
   if (!ours && !mapService) return; // anything else: leave it alone
 
-  event.respondWith(newestFirst(request.url, ours));
+  // Map pictures are big (up to 9 MB), so those use the saved copy when there is one.
+  // The app puts the game version on the end of the picture's address, so a new
+  // map has a new address and gets downloaded fresh.
+  if (request.url.startsWith(MAP_PICTURES)) {
+    event.respondWith(savedFirst(request.url));
+  } else {
+    event.respondWith(newestFirst(request.url, ours));
+  }
 });
+
+// Use the saved copy if we have one. Otherwise download it, save it,
+// and throw away older map pictures so they don't pile up.
+async function savedFirst(url) {
+  const saved = await caches.open(SAVED_COPIES);
+  const copy = await saved.match(url);
+  if (copy) return copy;
+
+  const fresh = await fetch(url, { mode: 'cors', credentials: 'omit' });
+  if (fresh.ok) {
+    for (const old of await saved.keys()) {
+      if (old.url.startsWith(MAP_PICTURES)) await saved.delete(old);
+    }
+    await saved.put(url, fresh.clone());
+  }
+  return fresh;
+}
 
 // Try the internet first. If that fails, fall back to the saved copy.
 async function newestFirst(url, ours) {

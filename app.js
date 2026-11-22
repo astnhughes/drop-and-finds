@@ -175,6 +175,7 @@ function spotToPicture(spot) {
 
 function pick() {
   if (spinning || !chosenSpot) return;
+  if (viewSeason !== data.currentSeason) showSeason(data.currentSeason); // the drop is on today's map
   const place = spotToPicture(chosenSpot);
 
   dropMarker.style.left = (place.across * 100) + '%';
@@ -207,10 +208,8 @@ const CATEGORIES = [
   { id: 'other', name: 'Other',      icon: '⭐', color: '--pin-other' },
 ];
 
-// Pins are saved on this iPad under this name. Nothing is sent anywhere.
-const PINS_KEY = 'drop-and-finds-pins';
-
 const mapWrap = document.querySelector('.map-wrap');
+const mapPicture = document.getElementById('map-blank');
 const pinsLayer = document.getElementById('pins');
 const findsHint = document.getElementById('finds-hint');
 const backdrop = document.getElementById('backdrop');
@@ -219,33 +218,74 @@ const categoryButtons = document.getElementById('category-buttons');
 const noteInput = document.getElementById('note');
 const saveButton = document.getElementById('pin-save');
 
+// ---------- What's saved on the iPad ----------
+// Everything is kept on this iPad under this name. Nothing is sent anywhere.
+const DATA_KEY = 'drop-and-finds-data';
+const OLD_PINS_KEY = 'drop-and-finds-pins'; // where pins lived before seasons existed
+
+// The saved data looks like this:
+// {
+//   currentSeason: '43',
+//   seasons: {
+//     '43': { build: '43.10', pins: [ ...pins... ], spots: [ ...wheel spots... ] },
+//     '42': { build: '42.30', pins: [ ... ], spots: [ ... ] },
+//   }
+// }
+// A season is named by the game's big version number. Until we've learned that
+// number, the season is called 'unknown'.
+//
 // Each pin looks like:
 // { id: 'p1732300000000', across: 0.48, down: 0.67, category: 'vault',
 //   status: 'confirmed', note: 'behind the shop' }
 // "across" and "down" are how far across/down the picture it is, from 0 to 1,
 // so the pin stays in the right place whatever size the map is drawn.
-let pins = readSavedPins();
+let data = readSavedData();
+let viewSeason = data.currentSeason;        // the season on screen right now
+let pins = data.seasons[viewSeason].pins;   // that season's pins
 let newPin = null;      // where a brand-new pin will go, before Save is tapped
 let editingPin = null;  // the saved pin being changed, if the card is in "edit" mode
 let formCategory = null;       // what's picked on the card right now
 let formStatus = 'confirmed';  // 'confirmed' or 'rumor'
 let filter = 'all';     // which pins to show: 'all' or one category id
 
-function readSavedPins() {
+function emptySeason() {
+  return { build: null, pins: [], spots: [] };
+}
+
+function readSavedData() {
   try {
-    const saved = JSON.parse(localStorage.getItem(PINS_KEY));
-    return Array.isArray(saved) ? saved : [];
+    const saved = JSON.parse(localStorage.getItem(DATA_KEY));
+    if (saved && saved.seasons && saved.seasons[saved.currentSeason]) return saved;
   } catch (error) {
-    return [];
+    // fall through and start fresh
+  }
+
+  // Nothing saved in the new shape yet. Bring along any pins from before seasons existed.
+  const fresh = { currentSeason: 'unknown', seasons: { unknown: emptySeason() } };
+  try {
+    const oldPins = JSON.parse(localStorage.getItem(OLD_PINS_KEY));
+    if (Array.isArray(oldPins)) fresh.seasons.unknown.pins = oldPins;
+  } catch (error) {
+    // no old pins to bring along
+  }
+  return fresh;
+}
+
+function saveData() {
+  try {
+    localStorage.setItem(DATA_KEY, JSON.stringify(data));
+  } catch (error) {
+    showProblem('Could not save on this iPad. Storage may be full or turned off.', error);
   }
 }
 
 function savePins() {
-  try {
-    localStorage.setItem(PINS_KEY, JSON.stringify(pins));
-  } catch (error) {
-    showProblem('Could not save pins on this iPad. Storage may be full or turned off.', error);
-  }
+  data.seasons[viewSeason].pins = pins;
+  saveData();
+}
+
+function seasonName(key) {
+  return key === 'unknown' ? 'This season' : 'Season v' + key;
 }
 
 function categoryFor(id) {
@@ -283,7 +323,9 @@ function drawPins() {
   }
 
   const count = (n) => (n === 1 ? '1 pin' : n + ' pins');
-  if (pins.length === 0) {
+  if (viewSeason !== data.currentSeason) {
+    findsHint.textContent = count(shown.length) + ' from ' + seasonName(viewSeason) + '. Old seasons are look-only.';
+  } else if (pins.length === 0) {
     findsHint.textContent = 'Tap the map to drop a pin.';
   } else if (filter === 'all') {
     findsHint.textContent = count(pins.length) + ' · Tap the map to add one, or a pin to change it.';
@@ -437,7 +479,8 @@ function fingerLifted(event, wasCancelled) {
 
   // A clean tap on the map (not a slide, not on a pin): drop a new pin there.
   const tappedMap = fingers.size === 0 && !fingerMoved && !wasCancelled
-    && !event.target.closest('.pin');
+    && !event.target.closest('.pin')
+    && viewSeason === data.currentSeason; // old seasons are look-only
   if (tappedMap) {
     newPin = {
       across: (point.x - panX) / zoom,
@@ -508,16 +551,28 @@ function showFormChoices() {
 }
 
 // Open the card. Give it a saved pin to edit that pin; give it nothing to make a new one.
+// On an old season the card is look-only: nothing can be changed.
 function openPinForm(pin = null) {
+  const lookOnly = viewSeason !== data.currentSeason;
   editingPin = pin;
-  formTitle.textContent = pin ? 'Edit find' : 'New find';
+  formTitle.textContent = lookOnly ? 'Old find' : (pin ? 'Edit find' : 'New find');
   formCategory = pin ? pin.category : null;
   formStatus = pin && pin.status === 'rumor' ? 'rumor' : 'confirmed';
   noteInput.value = pin ? pin.note : '';
   saveButton.textContent = pin ? 'Save' : 'Save pin';
-  deleteButton.hidden = !pin;
   disarmDelete();
   showFormChoices();
+
+  pinForm.querySelectorAll('.category-button, .status-button').forEach((button) => {
+    button.disabled = lookOnly;
+  });
+  noteInput.disabled = lookOnly;
+  saveButton.hidden = lookOnly;
+  deleteButton.hidden = lookOnly || !pin;
+  document.getElementById('pin-cancel').textContent = lookOnly ? 'Close' : 'Cancel';
+
+  seasonCard.hidden = true;
+  pinForm.hidden = false;
   backdrop.hidden = false;
 }
 
@@ -584,24 +639,174 @@ backdrop.addEventListener('click', (event) => {
 
 drawPins();
 
+// ---------- Seasons: today's map and the archive of old ones ----------
+const seasonButton = document.getElementById('season-button');
+const seasonCard = document.getElementById('season-card');
+const seasonList = document.getElementById('season-list');
+const seasonNotice = document.getElementById('season-notice');
+const archiveBanner = document.getElementById('archive-banner');
+
+// The map service only ever serves TODAY's map picture. So each time we load it,
+// we tuck a copy away under the season's name. That copy is how old maps can be
+// looked at after the season is over.
+const SEASON_PICTURES = 'drop-and-finds-season-maps';
+let todaysPictureUrl = null;      // the big live picture's address, once loaded
+let todaysSmallPictureUrl = null; // the normal-size one, used if the big one won't load
+let borrowedPictureUrl = null;
+
+function pictureName(key) {
+  return new URL('season-maps/' + key + '.png', location.href).href;
+}
+
+async function keepSeasonPicture(key, bigUrl, smallUrl) {
+  try {
+    let picture = await fetch(bigUrl);
+    if (!picture.ok) picture = await fetch(smallUrl);
+    if (!picture.ok) return;
+    const shelf = await caches.open(SEASON_PICTURES);
+    await shelf.put(pictureName(key), picture);
+  } catch (error) {
+    console.error(error); // not serious: we'll try again next time the app opens
+  }
+}
+
+// If the big picture won't load, quietly switch to the normal-size one.
+mapPicture.addEventListener('error', () => {
+  if (todaysSmallPictureUrl && mapPicture.src === todaysPictureUrl) {
+    mapPicture.src = todaysSmallPictureUrl;
+  }
+});
+
+async function keptSeasonPicture(key) {
+  try {
+    const shelf = await caches.open(SEASON_PICTURES);
+    const picture = await shelf.match(pictureName(key));
+    if (!picture) return null;
+    if (borrowedPictureUrl) URL.revokeObjectURL(borrowedPictureUrl);
+    borrowedPictureUrl = URL.createObjectURL(await picture.blob());
+    return borrowedPictureUrl;
+  } catch (error) {
+    return null;
+  }
+}
+
+// Put a season on screen: its map picture and its pins.
+async function showSeason(key) {
+  const isToday = key === data.currentSeason;
+  viewSeason = key;
+  pins = data.seasons[key].pins;
+  filter = 'all';
+  seasonButton.textContent = seasonName(key) + ' ▾';
+  archiveBanner.hidden = isToday;
+  document.getElementById('archive-name').textContent = seasonName(key);
+  if (!isToday) clearDrop();
+  resetView();
+  drawPins();
+
+  const picture = (isToday && todaysPictureUrl) ? todaysPictureUrl : await keptSeasonPicture(key);
+  if (viewSeason !== key) return; // a different season was chosen while we waited
+  if (picture) {
+    mapPicture.src = picture;
+  } else {
+    mapPicture.removeAttribute('src');
+    findsHint.textContent = 'No saved map picture for ' + seasonName(key) + ', but its pins are still here.';
+  }
+}
+
+// The Seasons card: newest first, with how many pins each has.
+function openSeasonCard() {
+  seasonList.innerHTML = '';
+  const keys = Object.keys(data.seasons).sort((a, b) => Number(b) - Number(a));
+  keys.sort((a, b) => (b === data.currentSeason) - (a === data.currentSeason)); // today's first
+
+  keys.forEach((key) => {
+    const season = data.seasons[key];
+    const count = season.pins.length === 1 ? '1 pin' : season.pins.length + ' pins';
+    const button = document.createElement('button');
+    button.className = key === viewSeason ? 'category-button selected' : 'category-button';
+    const title = document.createElement('span');
+    title.textContent = seasonName(key) + (key === data.currentSeason ? " (today's map)" : '');
+    const small = document.createElement('span');
+    small.className = 'small';
+    small.textContent = count;
+    button.append(title, small);
+    button.addEventListener('click', () => {
+      closeCards();
+      showSeason(key);
+    });
+    seasonList.appendChild(button);
+  });
+
+  pinForm.hidden = true;
+  seasonCard.hidden = false;
+  backdrop.hidden = false;
+}
+
+seasonButton.addEventListener('click', openSeasonCard);
+document.getElementById('season-close').addEventListener('click', closeCards);
+document.getElementById('archive-back').addEventListener('click', () => showSeason(data.currentSeason));
+
+// Work out which season we're in from the game's version, like "43.10".
+// A new big number (43 -> 44) means a new season: the old season's pins stay
+// saved under its name and a fresh, empty season begins.
+// Returns true if a new season just started.
+function updateSeason(version) {
+  if (!version) return false; // couldn't learn the version: carry on with the season we had
+  const before = data.currentSeason;
+  let newSeasonStarted = false;
+
+  if (before === 'unknown') {
+    // First time we've learned the number: give the nameless season its real name.
+    data.seasons[version.season] = data.seasons.unknown;
+    delete data.seasons.unknown;
+    data.currentSeason = version.season;
+  } else if (Number(version.season) > Number(before)) {
+    if (!data.seasons[version.season]) data.seasons[version.season] = emptySeason();
+    data.currentSeason = version.season;
+    newSeasonStarted = true;
+    seasonNotice.textContent = 'New season! Your ' + seasonName(before)
+      + ' pins are safe. Tap the Season button to see them.';
+    seasonNotice.hidden = false;
+  }
+
+  data.seasons[data.currentSeason].build = version.full;
+  return newSeasonStarted;
+}
+
 // ---------- Loading the map ----------
+const VERSION_URL = 'https://fortnite-api.com/v2/aes'; // tells us the game's version number
+
+// Ask for the game's version. Gives back { season: '43', full: '43.10' }, or null if we can't tell.
+async function readGameVersion() {
+  try {
+    const response = await fetch(VERSION_URL);
+    if (!response.ok) return null;
+    const build = (await response.json()).data.build; // like "++Fortnite+Release-43.10-CL-60118918"
+    const found = /Release-(\d+)\.(\d+)/.exec(build);
+    return found ? { season: found[1], full: found[1] + '.' + found[2] } : null;
+  } catch (error) {
+    return null;
+  }
+}
+
 // Three different things can go wrong, and each gets its own honest message:
 //   1. We can't reach the service at all (no internet).
 //   2. The service answers, but with a problem or with data we don't understand.
 //   3. Our own code breaks while using the data (a bug).
+// For 1 and 2, if we've loaded the map before, we carry on with the saved one.
 async function loadMap() {
   // 1. Try to reach the service.
   let response;
   try {
     response = await fetch(MAP_URL);
   } catch (error) {
-    showProblem('Can\'t reach the map service. Check the internet and reopen.', error);
+    useSavedMap('Can\'t reach the map service. Check the internet and reopen.', error);
     return;
   }
 
   // 2. Check the answer is good and has the parts we need.
   if (!response.ok) {
-    showProblem('The map service is having trouble (code ' + response.status + '). Try again later.');
+    useSavedMap('The map service is having trouble (code ' + response.status + '). Try again later.');
     return;
   }
   let map;
@@ -611,27 +816,64 @@ async function loadMap() {
     map = null;
   }
   if (!map || !Array.isArray(map.pois) || !map.images || !map.images.blank) {
-    showProblem('The map service sent something unexpected. Try again later.');
+    useSavedMap('The map service sent something unexpected. Try again later.');
     return;
   }
 
+  const version = await readGameVersion();
+
   // 3. Use the data. If this part fails, it's a bug in the app, not the internet.
   try {
+    const newSeasonStarted = updateSeason(version);
+    const season = data.seasons[data.currentSeason];
+
     // Every location goes on the wheel. We keep its name and where it is.
     allSpots = map.pois.map((spot) => ({
       name: spot.name,
       x: spot.location.x,
       y: spot.location.y,
     }));
+    season.spots = allSpots; // saved so the wheel still works with no internet
+    saveData();
     resetWheel();
 
-    // images.blank = the map picture with no names printed on it
-    document.getElementById('map-blank').src = map.images.blank;
+    // images.blank = the map picture with no names printed on it (2048 dots wide).
+    // The service also has a bigger one (4096 wide) at a similar address, which stays
+    // sharper when you zoom in. We ask for the big one and fall back to the normal one.
+    // The "?v=43.10" on the end makes the address change whenever the game updates,
+    // so the iPad only downloads the picture again when there's a new one.
+    const stamp = '?v=' + (season.build || new Date().toISOString().slice(0, 10));
+    todaysPictureUrl = map.images.blank.replace(/map\.png$/, 'map_4096.png') + stamp;
+    todaysSmallPictureUrl = map.images.blank + stamp;
+    keepSeasonPicture(data.currentSeason, todaysPictureUrl, todaysSmallPictureUrl);
+    showSeason(data.currentSeason);
 
-    statusLine.textContent = allSpots.length + ' locations on today\'s map';
+    statusLine.textContent = (newSeasonStarted ? 'New season! ' : '')
+      + (navigator.onLine ? '' : 'Offline · ')
+      + allSpots.length + ' locations'
+      + (season.build ? ' · Season v' + season.build : '');
     statusLine.classList.remove('problem');
   } catch (error) {
     showAppBug(error);
+  }
+}
+
+// No good answer from the service. If we saved this season's map earlier, use that.
+function useSavedMap(problem, error) {
+  const season = data.seasons[data.currentSeason];
+  if (!season.spots.length) {
+    showProblem(problem, error);
+    return;
+  }
+  try {
+    allSpots = season.spots;
+    resetWheel();
+    showSeason(data.currentSeason);
+    statusLine.textContent = 'Offline · using the saved map · ' + allSpots.length + ' locations';
+    statusLine.classList.remove('problem');
+    if (error) console.error(error);
+  } catch (bug) {
+    showAppBug(bug);
   }
 }
 

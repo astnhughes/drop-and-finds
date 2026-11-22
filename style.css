@@ -245,6 +245,39 @@ main {
   border-color: var(--text);
 }
 
+/* ---------- Seasons ---------- */
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+.season-chip {
+  border-color: var(--text-dim);
+  color: var(--text);
+}
+
+.notice {
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.season-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.season-list .category-button { justify-content: space-between; }
+.season-list .small { color: var(--text-dim); font-size: 15px; font-weight: 600; }
+
 /* ---------- Filter buttons above the map ---------- */
 .filter-bar {
   display: flex;

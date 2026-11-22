@@ -215,17 +215,21 @@ const pinsLayer = document.getElementById('pins');
 const findsHint = document.getElementById('finds-hint');
 const backdrop = document.getElementById('backdrop');
 const pinForm = document.getElementById('pin-form');
-const pinView = document.getElementById('pin-view');
 const categoryButtons = document.getElementById('category-buttons');
 const noteInput = document.getElementById('note');
 const saveButton = document.getElementById('pin-save');
 
 // Each pin looks like:
-// { id: 'p1732300000000', across: 0.48, down: 0.67, category: 'vault', note: 'behind the shop' }
+// { id: 'p1732300000000', across: 0.48, down: 0.67, category: 'vault',
+//   status: 'confirmed', note: 'behind the shop' }
 // "across" and "down" are how far across/down the picture it is, from 0 to 1,
 // so the pin stays in the right place whatever size the map is drawn.
 let pins = readSavedPins();
-let newPin = null; // the pin being made right now, before Save is tapped
+let newPin = null;      // where a brand-new pin will go, before Save is tapped
+let editingPin = null;  // the saved pin being changed, if the card is in "edit" mode
+let formCategory = null;       // what's picked on the card right now
+let formStatus = 'confirmed';  // 'confirmed' or 'rumor'
+let filter = 'all';     // which pins to show: 'all' or one category id
 
 function readSavedPins() {
   try {
@@ -248,22 +252,24 @@ function categoryFor(id) {
   return CATEGORIES.find((category) => category.id === id) || CATEGORIES[CATEGORIES.length - 1];
 }
 
-// Draw every saved pin on the map (plus the see-through one being made, if any).
+// Draw the pins on the map (only the kind the filter allows),
+// plus the see-through one being made, if any.
 function drawPins() {
   pinsLayer.innerHTML = '';
+  const shown = pins.filter((pin) => filter === 'all' || pin.category === filter);
 
-  pins.forEach((pin) => {
+  shown.forEach((pin) => {
     const category = categoryFor(pin.category);
     const button = document.createElement('button');
-    button.className = 'pin';
+    button.className = pin.status === 'rumor' ? 'pin rumor' : 'pin';
     button.textContent = category.icon;
     button.style.background = `var(${category.color})`;
     button.style.left = (pin.across * 100) + '%';
     button.style.top = (pin.down * 100) + '%';
     button.setAttribute('aria-label', category.name + (pin.note ? ': ' + pin.note : ''));
-    button.addEventListener('click', (event) => {
+    button.addEventListener('click', () => {
       if (fingerMoved) return; // you were sliding the map, not tapping the pin
-      openPinView(pin);
+      openPinForm(pin);
     });
     pinsLayer.appendChild(button);
   });
@@ -276,9 +282,42 @@ function drawPins() {
     pinsLayer.appendChild(ghost);
   }
 
-  findsHint.textContent = pins.length === 0
-    ? 'Tap the map to drop a pin.'
-    : (pins.length === 1 ? '1 pin' : pins.length + ' pins') + ' · Tap the map to add another.';
+  const count = (n) => (n === 1 ? '1 pin' : n + ' pins');
+  if (pins.length === 0) {
+    findsHint.textContent = 'Tap the map to drop a pin.';
+  } else if (filter === 'all') {
+    findsHint.textContent = count(pins.length) + ' · Tap the map to add one, or a pin to change it.';
+  } else {
+    findsHint.textContent = 'Showing ' + shown.length + ' of ' + count(pins.length) + '.';
+  }
+
+  drawFilterBar();
+}
+
+// The row of filter buttons: "All" plus one per category, each with its pin count.
+const filterBar = document.getElementById('filter-bar');
+
+function drawFilterBar() {
+  filterBar.innerHTML = '';
+  const choices = [{ id: 'all', label: 'All', count: pins.length }];
+  CATEGORIES.forEach((category) => {
+    choices.push({
+      id: category.id,
+      label: category.icon + ' ' + category.name,
+      count: pins.filter((pin) => pin.category === category.id).length,
+    });
+  });
+
+  choices.forEach((choice) => {
+    const chip = document.createElement('button');
+    chip.className = choice.id === filter ? 'chip selected' : 'chip';
+    chip.textContent = choice.label + ' ' + choice.count;
+    chip.addEventListener('click', () => {
+      filter = choice.id;
+      drawPins();
+    });
+    filterBar.appendChild(chip);
+  });
 }
 
 // ---------- Zooming and sliding the map ----------
@@ -431,6 +470,12 @@ document.addEventListener('gesturestart', (event) => event.preventDefault());
 
 applyView();
 
+// ---------- The pin card (new pin or edit pin) ----------
+const formTitle = document.getElementById('form-title');
+const deleteButton = document.getElementById('pin-delete');
+const statusButtons = document.querySelectorAll('.status-button');
+let deleteArmed = false; // Delete needs two taps, so one slip can't erase a pin
+
 // Build the five category buttons once.
 CATEGORIES.forEach((category) => {
   const button = document.createElement('button');
@@ -438,61 +483,101 @@ CATEGORIES.forEach((category) => {
   button.dataset.category = category.id;
   button.innerHTML = `<span class="icon">${category.icon}</span>${category.name}`;
   button.addEventListener('click', () => {
-    newPin.category = category.id;
-    categoryButtons.querySelectorAll('.category-button').forEach((other) => {
-      other.classList.toggle('selected', other === button);
-    });
-    saveButton.disabled = false;
+    formCategory = category.id;
+    showFormChoices();
   });
   categoryButtons.appendChild(button);
 });
 
-function openPinForm() {
-  noteInput.value = '';
-  saveButton.disabled = true;
-  categoryButtons.querySelectorAll('.category-button').forEach((b) => b.classList.remove('selected'));
-  pinView.hidden = true;
-  pinForm.hidden = false;
-  backdrop.hidden = false;
+statusButtons.forEach((button) => {
+  button.addEventListener('click', () => {
+    formStatus = button.dataset.status;
+    showFormChoices();
+  });
+});
+
+// Light up whichever category and status are picked. Save only works once there's a category.
+function showFormChoices() {
+  categoryButtons.querySelectorAll('.category-button').forEach((button) => {
+    button.classList.toggle('selected', button.dataset.category === formCategory);
+  });
+  statusButtons.forEach((button) => {
+    button.classList.toggle('selected', button.dataset.status === formStatus);
+  });
+  saveButton.disabled = !formCategory;
 }
 
-function openPinView(pin) {
-  const category = categoryFor(pin.category);
-  document.getElementById('view-title').textContent = category.icon + ' ' + category.name;
-  const noteLine = document.getElementById('view-note');
-  noteLine.textContent = pin.note || 'No note';
-  noteLine.classList.toggle('empty', !pin.note);
-  pinForm.hidden = true;
-  pinView.hidden = false;
+// Open the card. Give it a saved pin to edit that pin; give it nothing to make a new one.
+function openPinForm(pin = null) {
+  editingPin = pin;
+  formTitle.textContent = pin ? 'Edit find' : 'New find';
+  formCategory = pin ? pin.category : null;
+  formStatus = pin && pin.status === 'rumor' ? 'rumor' : 'confirmed';
+  noteInput.value = pin ? pin.note : '';
+  saveButton.textContent = pin ? 'Save' : 'Save pin';
+  deleteButton.hidden = !pin;
+  disarmDelete();
+  showFormChoices();
   backdrop.hidden = false;
 }
 
 function closeCards() {
   backdrop.hidden = true;
-  pinForm.hidden = true;
-  pinView.hidden = true;
   noteInput.blur(); // puts the keyboard away
   newPin = null;
+  editingPin = null;
   drawPins();
 }
 
-function saveNewPin() {
-  if (!newPin || !newPin.category) return;
-  pins.push({
-    id: 'p' + Date.now(),
-    across: newPin.across,
-    down: newPin.down,
-    category: newPin.category,
-    note: noteInput.value.trim(),
-  });
+function savePin() {
+  if (!formCategory) return;
+  const note = noteInput.value.trim();
+
+  if (editingPin) {
+    // Change the pin that's already saved.
+    editingPin.category = formCategory;
+    editingPin.status = formStatus;
+    editingPin.note = note;
+  } else if (newPin) {
+    pins.push({
+      id: 'p' + Date.now(),
+      across: newPin.across,
+      down: newPin.down,
+      category: formCategory,
+      status: formStatus,
+      note,
+    });
+  }
+
+  // If a filter is on and this pin isn't that kind, show everything so the pin doesn't vanish.
+  if (filter !== 'all' && filter !== formCategory) filter = 'all';
+
   savePins();
   closeCards();
 }
 
-saveButton.addEventListener('click', saveNewPin);
+// First tap asks "are you sure?", second tap really deletes.
+function deletePin() {
+  if (!editingPin) return;
+  if (!deleteArmed) {
+    deleteArmed = true;
+    deleteButton.textContent = 'Tap again to delete';
+    return;
+  }
+  pins = pins.filter((pin) => pin !== editingPin);
+  savePins();
+  closeCards();
+}
+
+function disarmDelete() {
+  deleteArmed = false;
+  deleteButton.textContent = 'Delete';
+}
+
+saveButton.addEventListener('click', savePin);
+deleteButton.addEventListener('click', deletePin);
 document.getElementById('pin-cancel').addEventListener('click', closeCards);
-document.getElementById('view-close').addEventListener('click', closeCards);
-// Tapping the dark area outside a card closes it too.
+// Tapping the dark area outside the card closes it too.
 backdrop.addEventListener('click', (event) => {
   if (event.target === backdrop) closeCards();
 });

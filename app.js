@@ -16,7 +16,6 @@ function showScreen(screenId) {
   });
   if (screenId === 'screen-news') loadNewsScreen(); // freshen the news when you open it
   if (screenId === 'screen-shop') loadShop();        // and the shop
-  else stopCardVideo();                              // leaving the shop stops any video
 }
 
 tabs.forEach((tab) => {
@@ -583,6 +582,7 @@ function openPinForm(pin = null) {
 
 function closeCards() {
   backdrop.hidden = true;
+  closeVideo();
   noteInput.blur(); // puts the keyboard away
   newPin = null;
   editingPin = null;
@@ -1362,7 +1362,7 @@ function makeShopCard(item, inShopToday) {
     const watch = document.createElement('button');
     watch.className = 'watch-button';
     watch.textContent = '▶ Watch';
-    watch.addEventListener('click', () => toggleCardVideo(item, media, watch));
+    watch.addEventListener('click', () => openVideo(item));
     card.appendChild(watch);
   }
 
@@ -1375,53 +1375,73 @@ function makeShopCard(item, inShopToday) {
   return card;
 }
 
-// ---------- Playing a showcase video right on a card ----------
-// Tapping Watch makes the card wider and swaps its picture for the moving clip: silent, looping,
-// with YouTube's buttons hidden and nothing inside it tappable. One card plays at a time.
+// ---------- Playing a showcase video in a big pop-up ----------
+// The player is YouTube's, so some things are YouTube's rules, not ours:
+//   - Ads can play first. The player has to be tappable so "Skip" works.
+//   - We may not cover up parts of the player.
+// What we CAN do, and do here:
+//   - Hide the control bar and loop the clip, so it never reaches the end-of-video suggestions.
+//   - "Sandbox" the player: it isn't allowed to open new windows, so tapping the
+//     YouTube logo, the title or a suggested video can't take anyone to YouTube.
+//   - Start silent (iPads only auto-start silent videos) with our own Sound button.
 // "youtube-nocookie" is YouTube's privacy mode.
-let playingCard = null; // { media, button } for the card that's playing, if any
+const videoFrame = document.getElementById('video-frame');
+const soundButton = document.getElementById('video-sound');
+let videoPlayer = null;
+let videoSoundOn = false;
 
-function stopCardVideo() {
-  if (!playingCard) return;
-  const player = playingCard.media.querySelector('iframe');
-  if (player) player.remove();
-  playingCard.media.parentElement.classList.remove('playing');
-  playingCard.button.textContent = '▶ Watch';
-  playingCard = null;
+function tellVideo(command) {
+  if (!videoPlayer || !videoPlayer.contentWindow) return;
+  videoPlayer.contentWindow.postMessage(
+    JSON.stringify({ event: 'command', func: command, args: [] }), 'https://www.youtube-nocookie.com');
 }
 
-function toggleCardVideo(item, media, button) {
-  const wasThisCard = playingCard && playingCard.media === media;
-  stopCardVideo();
-  if (wasThisCard || !isVideoId(item.video)) return; // tapping Stop just stops
+function showSoundButton() {
+  soundButton.textContent = videoSoundOn ? '🔇 Sound off' : '🔊 Sound on';
+}
 
-  const player = document.createElement('iframe');
-  player.src = 'https://www.youtube-nocookie.com/embed/' + item.video
-    + '?autoplay=1&mute=1&loop=1&playlist=' + item.video   // silent, and starts over when it ends
-    + '&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&iv_load_policy=3'
+function openVideo(item) {
+  if (!isVideoId(item.video)) return;
+  closeVideo();
+  document.getElementById('video-title').textContent = item.name;
+
+  videoPlayer = document.createElement('iframe');
+  videoPlayer.src = 'https://www.youtube-nocookie.com/embed/' + item.video
+    + '?autoplay=1&mute=1&loop=1&playlist=' + item.video   // silent start, and starts over when it ends
+    + '&controls=0&fs=0&rel=0&playsinline=1&iv_load_policy=3'
     + '&enablejsapi=1&origin=' + encodeURIComponent(location.origin); // lets us send it "play"
-  player.title = item.name + ' video';
-  player.allow = 'autoplay; encrypted-media';
-  player.referrerPolicy = 'strict-origin-when-cross-origin';
-  // Nothing in the player can be tapped, so if it doesn't start by itself we tell it to:
-  // once it has loaded, send "mute" and "play" messages (and again a moment later, to be sure).
-  player.addEventListener('load', () => {
-    const tell = (command) => player.contentWindow && player.contentWindow.postMessage(
-      JSON.stringify({ event: 'command', func: command, args: [] }), 'https://www.youtube-nocookie.com');
-    const start = () => { tell('mute'); tell('playVideo'); };
+  videoPlayer.title = item.name + ' video';
+  videoPlayer.allow = 'autoplay; encrypted-media';
+  videoPlayer.referrerPolicy = 'strict-origin-when-cross-origin';
+  // No "allow-popups" and no "allow-top-navigation": the player can't open YouTube.
+  videoPlayer.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-presentation');
+  // If it doesn't start by itself, tell it to (and again a moment later, to be sure).
+  videoPlayer.addEventListener('load', () => {
+    const start = () => { tellVideo('mute'); tellVideo('playVideo'); };
     start();
     setTimeout(start, 1500);
   });
-  media.appendChild(player);
-  media.parentElement.classList.add('playing'); // the card widens to fit the whole video
-  button.textContent = '■ Stop';
-  playingCard = { media, button };
-  media.parentElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+
+  videoSoundOn = false;
+  showSoundButton();
+  videoFrame.appendChild(videoPlayer);
+  showCard(document.getElementById('video-card'));
 }
+
+function closeVideo() {
+  videoFrame.innerHTML = ''; // removing the player stops the video
+  videoPlayer = null;
+}
+
+soundButton.addEventListener('click', () => {
+  videoSoundOn = !videoSoundOn;
+  tellVideo(videoSoundOn ? 'unMute' : 'mute');
+  showSoundButton();
+});
+document.getElementById('video-close').addEventListener('click', closeCards);
 
 // Draw the chips, the wish list message, and the cards that match the chip and search box.
 function drawShop() {
-  stopCardVideo(); // the cards are about to be redrawn
   shopChips.innerHTML = '';
   SHOP_KINDS.forEach((kind) => {
     const chip = document.createElement('button');

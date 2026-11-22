@@ -140,13 +140,38 @@ resetButton.addEventListener('click', resetWheel);
 
 // ---------- Loading the map ----------
 // Ask the service for the current map, then fill the wheel and show the picture.
+// Three different things can go wrong, and each gets its own honest message:
+//   1. We can't reach the service at all (no internet).
+//   2. The service answers, but with a problem or with data we don't understand.
+//   3. Our own code breaks while using the data (a bug).
 async function loadMap() {
+  // 1. Try to reach the service.
+  let response;
   try {
-    const response = await fetch(MAP_URL);
-    if (!response.ok) throw new Error('The map service answered ' + response.status);
+    response = await fetch(MAP_URL);
+  } catch (error) {
+    showProblem('Can\'t reach the map service. Check the internet and reopen.', error);
+    return;
+  }
 
-    const map = (await response.json()).data;
+  // 2. Check the answer is good and has the parts we need.
+  if (!response.ok) {
+    showProblem('The map service is having trouble (code ' + response.status + '). Try again later.');
+    return;
+  }
+  let map;
+  try {
+    map = (await response.json()).data;
+  } catch (error) {
+    map = null;
+  }
+  if (!map || !Array.isArray(map.pois) || !map.images || !map.images.blank) {
+    showProblem('The map service sent something unexpected. Try again later.');
+    return;
+  }
 
+  // 3. Use the data. If this part fails, it's a bug in the app, not the internet.
+  try {
     // Every location's name goes on the wheel.
     allSpots = map.pois.map((spot) => spot.name);
     resetWheel();
@@ -157,10 +182,25 @@ async function loadMap() {
     statusLine.textContent = allSpots.length + ' locations on today\'s map';
     statusLine.classList.remove('problem');
   } catch (error) {
-    statusLine.textContent = 'Could not load the map. Check the internet and reopen.';
-    statusLine.classList.add('problem');
-    console.error(error);
+    showAppBug(error);
   }
 }
+
+// Show a problem in the top corner (and keep the details for Dad in the console).
+function showProblem(message, error) {
+  statusLine.textContent = message;
+  statusLine.classList.add('problem');
+  if (error) console.error(error);
+}
+
+// A bug in our own code. Show what broke so we can tell Claude exactly what to fix.
+function showAppBug(error) {
+  const detail = error && error.message ? error.message : String(error);
+  showProblem('Something broke inside the app: ' + detail, error);
+}
+
+// Catch bugs anywhere else in the app too, so they never hide.
+window.addEventListener('error', (event) => showAppBug(event.error || event.message));
+window.addEventListener('unhandledrejection', (event) => showAppBug(event.reason));
 
 loadMap();

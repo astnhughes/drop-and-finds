@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=20">
+  <link rel="stylesheet" href="style.css?v=21">
 </head>
 <body>
   <header class="top-bar">
@@ -45,6 +45,9 @@
         <button id="skip" class="big-button" disabled>Skip this spot</button>
         <p id="skipped-note" class="hint" hidden></p>
         <button id="reset" class="small-button" hidden>Put all spots back</button>
+        <button id="bus-button" class="big-button">🚌 Bus route</button>
+        <p id="bus-note" class="hint" hidden></p>
+        <button id="bus-clear" class="small-button" hidden>Clear bus route</button>
       </div>
     </section>
 
@@ -57,6 +60,19 @@
       </div>
 
       <!-- Filter buttons: show every pin, or just one kind. app.js fills this in. -->
+      <!-- Shows while drawing the bus route -->
+      <div id="bus-banner" class="bus-banner" hidden>
+        <p id="bus-text" class="bus-text"></p>
+        <div class="bus-controls">
+          <span class="bus-label">How far will you glide?</span>
+          <button class="chip reach-chip" data-reach="short">Short hop</button>
+          <button class="chip reach-chip" data-reach="normal">Normal</button>
+          <button class="chip reach-chip" data-reach="long">Long glide</button>
+          <button id="bus-use" class="chip bus-use" disabled>Use this route</button>
+          <button id="bus-cancel" class="chip">Cancel</button>
+        </div>
+      </div>
+
       <div class="filter-row">
         <!-- Opens the list of seasons (today's map plus old ones) -->
         <button id="season-button" class="chip season-chip">Season ▾</button>
@@ -81,6 +97,8 @@
           <div id="map-layer" class="map-layer">
             <img id="map-blank" class="map" alt="Map without names" crossorigin="anonymous" draggable="false">
             <!-- Max's pins get added here by app.js -->
+            <!-- The bus route gets drawn here by app.js -->
+            <svg id="bus-layer" class="bus-layer" viewBox="0 0 1000 1000"></svg>
             <div id="pins"></div>
             <div id="drop-marker" class="drop-marker" hidden>
               <div class="drop-ring"></div>
@@ -194,6 +212,6 @@
     <button class="tab" data-screen="screen-shop">Shop</button>
   </nav>
 
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>

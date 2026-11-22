@@ -40,6 +40,7 @@ let spotsOnWheel = []; // the ones still on the wheel (skipped ones are taken of
 let chosenSpot = null; // the spot the wheel last landed on
 let wheelTurn = 0;     // how far the wheel has turned so far, in degrees
 let spinning = false;
+let busRoute = null;   // this match's bus path, if one is set (see "Bus route" further down)
 
 // Turn an angle on the wheel into an x,y point. 0 degrees is straight up.
 function pointOnWheel(angle, radius) {
@@ -122,7 +123,7 @@ function skip() {
 // Put every skipped spot back on the wheel.
 function resetWheel() {
   if (spinning) return;
-  spotsOnWheel = [...allSpots];
+  spotsOnWheel = [...wheelPool()];
   chosenSpot = null;
   resultLine.textContent = 'Tap Spin!';
   drawWheel();
@@ -131,7 +132,7 @@ function resetWheel() {
 
 // Turn buttons on and off so you can't tap the wrong thing mid-spin.
 function updateButtons() {
-  const skippedCount = allSpots.length - spotsOnWheel.length;
+  const skippedCount = wheelPool().length - spotsOnWheel.length;
   const haveWinner = !spinning && chosenSpot !== null;
 
   spinButton.disabled = spinning || spotsOnWheel.length === 0;
@@ -446,12 +447,14 @@ function beginGesture() {
 
 mapWrap.addEventListener('pointerdown', (event) => {
   if (event.target.closest('.zoom-buttons')) return;
+  if (busDrawing) { startBusLine(event); return; } // in bus mode, a finger draws the route
   if (fingers.size === 0) fingerMoved = false;
   fingers.set(event.pointerId, windowPoint(event));
   beginGesture();
 });
 
 window.addEventListener('pointermove', (event) => {
+  if (busDrawing) { moveBusLine(event); return; }
   if (!fingers.has(event.pointerId)) return;
   fingers.set(event.pointerId, windowPoint(event));
   const points = [...fingers.values()];
@@ -479,13 +482,14 @@ window.addEventListener('pointermove', (event) => {
 });
 
 function fingerLifted(event, wasCancelled) {
+  if (busDrawing) { endBusLine(event); return; }
   if (!fingers.has(event.pointerId)) return;
   const point = fingers.get(event.pointerId);
   fingers.delete(event.pointerId);
 
   // A clean tap on the map (not a slide, not on a pin): drop a new pin there.
   const tappedMap = fingers.size === 0 && !fingerMoved && !wasCancelled
-    && !event.target.closest('.pin')
+    && event.target.closest && !event.target.closest('.pin') // (a finger lifted off-screen has no element)
     && viewSeason === data.currentSeason; // old seasons are look-only
   if (tappedMap) {
     newPin = {
@@ -518,6 +522,167 @@ mapWrap.addEventListener('wheel', (event) => {
 document.addEventListener('gesturestart', (event) => event.preventDefault());
 
 applyView();
+
+// ---------- Bus route: only offer spots you can glide to ----------
+// Before a match, drag a line on the map along the Battle Bus's path. The wheel
+// then only holds the spots within gliding reach of that line.
+const busLayer = document.getElementById('bus-layer');
+const busBanner = document.getElementById('bus-banner');
+const busText = document.getElementById('bus-text');
+const busNote = document.getElementById('bus-note');
+const busClearButton = document.getElementById('bus-clear');
+const busUseButton = document.getElementById('bus-use');
+
+// How far from the bus line counts as "in reach", as a fraction of the map picture's width.
+// These are starting guesses, not measured from the game. Max can tune them by playing.
+const BUS_REACH = { short: 0.12, normal: 0.22, long: 0.32 };
+
+let busDrawing = false;   // true while the map is in "draw the bus route" mode
+let busDraft = null;      // the line being drawn: { x1, y1, x2, y2, reach }
+let busFinger = null;     // which finger is drawing
+
+// How far a point is from the line between (x1,y1) and (x2,y2).
+function distanceToLine(px, py, line) {
+  const dx = line.x2 - line.x1;
+  const dy = line.y2 - line.y1;
+  const lengthSquared = dx * dx + dy * dy;
+  // t = how far along the line the closest point is (0 = start, 1 = end)
+  const t = lengthSquared === 0 ? 0 : clamp(((px - line.x1) * dx + (py - line.y1) * dy) / lengthSquared, 0, 1);
+  return Math.hypot(px - (line.x1 + t * dx), py - (line.y1 + t * dy));
+}
+
+function spotsInReach(route) {
+  return allSpots.filter((spot) => {
+    const place = spotToPicture(spot);
+    return distanceToLine(place.across, place.down, route) <= BUS_REACH[route.reach];
+  });
+}
+
+// The spots the wheel is allowed to use: all of them, or just the ones near the bus.
+function wheelPool() {
+  return busRoute ? spotsInReach(busRoute) : allSpots;
+}
+
+// Draw the route on the map: a wide see-through band (the reach), the bus line,
+// and a dot for every spot (bright if in reach, dim if not).
+function drawBusLayer() {
+  const route = busDrawing ? busDraft : busRoute;
+  if (!route || viewSeason !== data.currentSeason) {
+    busLayer.innerHTML = '';
+    return;
+  }
+  const at = (value) => (value * 1000).toFixed(1); // the drawing area is 1000 x 1000
+  const reachable = new Set(spotsInReach(route));
+  let drawing = `<line class="bus-reach" x1="${at(route.x1)}" y1="${at(route.y1)}" x2="${at(route.x2)}" y2="${at(route.y2)}"
+                   stroke-width="${at(BUS_REACH[route.reach] * 2)}"/>
+                 <line class="bus-line" x1="${at(route.x1)}" y1="${at(route.y1)}" x2="${at(route.x2)}" y2="${at(route.y2)}"/>
+                 <circle class="bus-end" cx="${at(route.x2)}" cy="${at(route.y2)}" r="12"/>`;
+  allSpots.forEach((spot) => {
+    const place = spotToPicture(spot);
+    drawing += `<circle class="${reachable.has(spot) ? 'bus-spot in' : 'bus-spot'}"
+                  cx="${at(place.across)}" cy="${at(place.down)}" r="9"/>`;
+  });
+  busLayer.innerHTML = drawing;
+}
+
+function showBusBanner() {
+  const haveLine = busDraft && Math.hypot(busDraft.x2 - busDraft.x1, busDraft.y2 - busDraft.y1) > 0.05;
+  if (!haveLine) {
+    busText.textContent = 'Drag your finger across the map along the bus\'s path.';
+  } else {
+    const count = spotsInReach(busDraft).length;
+    busText.textContent = count + ' of ' + allSpots.length + ' spots in reach.'
+      + (count === 0 ? ' Try a longer glide or redraw the line.' : ' Drag again to redraw.')
+      + (data.currentSeason === MEASURED_SEASON ? '' : ' (New map: this may be a little off.)');
+  }
+  busUseButton.disabled = !haveLine || spotsInReach(busDraft).length === 0;
+  document.querySelectorAll('.reach-chip').forEach((chip) => {
+    chip.classList.toggle('selected', busDraft && chip.dataset.reach === busDraft.reach);
+  });
+}
+
+// Open the map in "draw the bus route" mode.
+function startBusMode() {
+  if (spinning || allSpots.length === 0) return;
+  if (viewSeason !== data.currentSeason) showSeason(data.currentSeason);
+  clearDrop();
+  resetView();
+  busDrawing = true;
+  busDraft = busRoute ? { ...busRoute } : { x1: 0, y1: 0, x2: 0, y2: 0, reach: 'normal' };
+  busBanner.hidden = false;
+  showBusBanner();
+  drawBusLayer();
+  showScreen('screen-finds');
+}
+
+function mapPointOf(event) {
+  const point = windowPoint(event); // the map is zoomed all the way out in bus mode
+  return { x: clamp(point.x, 0, 1), y: clamp(point.y, 0, 1) };
+}
+
+function startBusLine(event) {
+  busFinger = event.pointerId;
+  const point = mapPointOf(event);
+  busDraft = { x1: point.x, y1: point.y, x2: point.x, y2: point.y, reach: busDraft.reach };
+  drawBusLayer();
+}
+
+function moveBusLine(event) {
+  if (event.pointerId !== busFinger) return;
+  const point = mapPointOf(event);
+  busDraft.x2 = point.x;
+  busDraft.y2 = point.y;
+  drawBusLayer();
+}
+
+function endBusLine(event) {
+  if (event.pointerId !== busFinger) return;
+  busFinger = null;
+  showBusBanner();
+}
+
+// Leave bus mode. keep = true saves the drawn line as this match's route.
+function endBusMode(keep) {
+  if (keep) busRoute = { ...busDraft };
+  busDrawing = false;
+  busDraft = null;
+  busFinger = null;
+  busBanner.hidden = true;
+  drawBusLayer();
+  if (keep) {
+    resetWheel();
+    showBusNote();
+    showScreen('screen-drop');
+  }
+}
+
+function clearBusRoute() {
+  if (spinning) return;
+  busRoute = null;
+  drawBusLayer();
+  resetWheel();
+  showBusNote();
+}
+
+function showBusNote() {
+  busNote.hidden = !busRoute;
+  busClearButton.hidden = !busRoute;
+  if (busRoute) {
+    busNote.textContent = '🚌 Bus route on: ' + wheelPool().length + ' of ' + allSpots.length + ' spots in reach';
+  }
+}
+
+document.getElementById('bus-button').addEventListener('click', startBusMode);
+busUseButton.addEventListener('click', () => endBusMode(true));
+document.getElementById('bus-cancel').addEventListener('click', () => endBusMode(false));
+busClearButton.addEventListener('click', clearBusRoute);
+document.querySelectorAll('.reach-chip').forEach((chip) => {
+  chip.addEventListener('click', () => {
+    busDraft.reach = chip.dataset.reach;
+    showBusBanner();
+    drawBusLayer();
+  });
+});
 
 // ---------- The pin card (new pin or edit pin) ----------
 const formTitle = document.getElementById('form-title');
@@ -709,8 +874,10 @@ async function showSeason(key) {
   archiveBanner.hidden = isToday;
   document.getElementById('archive-name').textContent = seasonName(key);
   if (!isToday) clearDrop();
+  if (!isToday && busDrawing) endBusMode(false);
   resetView();
   drawPins();
+  drawBusLayer();
 
   const picture = (isToday && todaysPictureUrl) ? todaysPictureUrl : await keptSeasonPicture(key);
   if (viewSeason !== key) return; // a different season was chosen while we waited
@@ -999,6 +1166,7 @@ async function loadMap() {
     season.spots = allSpots; // saved so the wheel still works with no internet
     saveData();
     resetWheel();
+    showBusNote();
 
     // images.blank = the map picture with no names printed on it (2048 dots wide).
     // The service also has a bigger one (4096 wide) at a similar address, which stays

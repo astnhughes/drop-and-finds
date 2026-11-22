@@ -788,3 +788,38 @@ main {
   height: 100%;
   border: 0;
 }
+
+/* ---------- Bus route ---------- */
+.bus-banner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
+}
+.bus-banner[hidden] { display: none; }
+.bus-text { margin: 0; font-size: 19px; font-weight: 700; color: var(--accent); }
+.bus-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+}
+.bus-label { font-size: 15px; color: var(--text-dim); }
+.chip.bus-use { background: var(--accent); color: var(--accent-text); }
+.chip.bus-use:disabled { opacity: 0.4; }
+
+/* The drawing that sits on top of the map picture. Taps pass straight through it. */
+.bus-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+.bus-reach { stroke: var(--accent); stroke-opacity: 0.22; stroke-linecap: round; }
+.bus-line  { stroke: var(--text); stroke-width: 6; stroke-dasharray: 18 12; stroke-linecap: round; }
+.bus-end   { fill: var(--text); }
+.bus-spot  { fill: var(--background); stroke: var(--text-dim); stroke-width: 3; opacity: 0.8; }
+.bus-spot.in { fill: var(--accent); stroke: var(--background); opacity: 1; }

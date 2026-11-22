@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=12">
+  <link rel="stylesheet" href="style.css?v=13">
 </head>
 <body>
   <header class="top-bar">
@@ -112,6 +112,18 @@
       <div id="news-list" class="news-list"></div>
       <p id="news-note" class="hint"></p>
     </section>
+
+    <!-- Screen 4: Shop (today's item shop and the wish list) -->
+    <section id="screen-shop" class="screen shop-screen" hidden>
+      <!-- Says whether anything on the wish list is in the shop today -->
+      <p id="wish-box" class="notice" hidden></p>
+
+      <input id="shop-search" class="note-input" type="search" placeholder="Search today's shop" autocomplete="off">
+      <div id="shop-chips" class="filter-bar"></div>
+      <p id="shop-note" class="hint">Loading the shop…</p>
+      <div id="shop-list" class="shop-list"></div>
+      <p class="fine-print">Just for looking. Nothing can be bought from this app.</p>
+    </section>
   </main>
 
   <!-- Pop-up cards. The dark backdrop covers the app while one is open. -->
@@ -168,8 +180,9 @@
     <button class="tab active" data-screen="screen-drop">Drop Picker</button>
     <button class="tab" data-screen="screen-finds">My Finds</button>
     <button class="tab" data-screen="screen-news">News</button>
+    <button class="tab" data-screen="screen-shop">Shop</button>
   </nav>
 
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

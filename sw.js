@@ -7,7 +7,8 @@
 
 const SAVED_COPIES = 'drop-and-finds-saved';
 const MAP_SERVICE = 'https://fortnite-api.com';
-const MAP_PICTURES = MAP_SERVICE + '/images/';
+const SERVICE_PICTURES = MAP_SERVICE + '/images/';
+const MAP_PICTURES = MAP_SERVICE + '/images/map';
 
 // Start working straight away instead of waiting for the app to be reopened.
 self.addEventListener('install', () => self.skipWaiting());
@@ -20,6 +21,9 @@ self.addEventListener('fetch', (event) => {
   const ours = request.url.startsWith(self.location.origin);
   const mapService = request.url.startsWith(MAP_SERVICE);
   if (!ours && !mapService) return; // anything else: leave it alone
+
+  // Item shop pictures: there are hundreds and they change daily, so we don't keep copies.
+  if (request.url.startsWith(SERVICE_PICTURES) && !request.url.startsWith(MAP_PICTURES)) return;
 
   // Map pictures are big (up to 9 MB), so those use the saved copy when there is one.
   // The app puts the game version on the end of the picture's address, so a new

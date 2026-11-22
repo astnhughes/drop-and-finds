@@ -668,3 +668,77 @@ main {
   font-size: 16px;
   line-height: 1.4;
 }
+
+/* ---------- Shop screen ---------- */
+.shop-screen {
+  align-items: stretch;
+  gap: 12px;
+  padding: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.shop-screen .note-input { flex: none; }
+.shop-screen .hint, .shop-screen .fine-print { text-align: center; }
+
+.shop-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 12px;
+}
+
+.shop-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 14px;
+  background: var(--panel);
+}
+.shop-card.gone { opacity: 0.55; } /* wished for, but not in the shop today */
+.shop-card img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  background: var(--background);
+}
+.shop-card .name {
+  margin: 10px 10px 2px;
+  font-size: 16px;
+  font-weight: 800;
+}
+.shop-card .kind, .shop-card .leaves {
+  margin: 0 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.shop-card .price {
+  margin: 6px 10px 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+}
+.shop-card .price s { color: var(--text-dim); font-weight: 400; }
+
+/* The star in the corner of each card */
+.star {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(18, 20, 28, 0.75);
+  color: var(--text-dim);
+  font-size: 24px;
+  line-height: 1;
+}
+.star.on { color: var(--accent); }
+
+/* A little dot on the Shop tab when a wished-for item is in the shop */
+.tab.has-wish::after {
+  content: " ★";
+  color: var(--accent);
+}
+.tab.active.has-wish::after { color: var(--accent-text); }

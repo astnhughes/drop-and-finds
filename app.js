@@ -15,6 +15,7 @@ function showScreen(screenId) {
     screen.hidden = screen.id !== screenId;
   });
   if (screenId === 'screen-news') loadNewsScreen(); // freshen the news when you open it
+  if (screenId === 'screen-shop') loadShop();        // and the shop
 }
 
 tabs.forEach((tab) => {
@@ -244,6 +245,7 @@ const OLD_PINS_KEY = 'drop-and-finds-pins'; // where pins lived before seasons e
 // "across" and "down" are how far across/down the picture it is, from 0 to 1,
 // so the pin stays in the right place whatever size the map is drawn.
 let data = readSavedData();
+if (!Array.isArray(data.wishlist)) data.wishlist = []; // shop items Max has starred
 let viewSeason = data.currentSeason;        // the season on screen right now
 let pins = data.seasons[viewSeason].pins;   // that season's pins
 let newPin = null;      // where a brand-new pin will go, before Save is tapped
@@ -895,6 +897,19 @@ function importBackup(text) {
     });
   });
 
+  // Bring back wish list stars too (again, only adding).
+  const theirWishes = Array.isArray(backup.data.wishlist) ? backup.data.wishlist : [];
+  theirWishes.forEach((wish) => {
+    if (!wish || typeof wish.key !== 'string' || typeof wish.name !== 'string') return;
+    if (data.wishlist.some((mine) => mine.key === wish.key)) return;
+    data.wishlist.push({
+      key: wish.key,
+      name: wish.name.slice(0, 120),
+      kind: typeof wish.kind === 'string' ? wish.kind : 'Other',
+      image: typeof wish.image === 'string' && wish.image.startsWith('https://') ? wish.image : '',
+    });
+  });
+
   saveData();
   pins = data.seasons[viewSeason].pins;
   drawPins();
@@ -1195,6 +1210,239 @@ async function loadNews() {
     showAppBug(error);
   }
 }
+
+// ---------- Shop screen: today's item shop and the wish list ----------
+const SHOP_URL = 'https://fortnite-api.com/v2/shop';
+const shopList = document.getElementById('shop-list');
+const shopChips = document.getElementById('shop-chips');
+const shopNote = document.getElementById('shop-note');
+const shopSearch = document.getElementById('shop-search');
+const wishBox = document.getElementById('wish-box');
+const shopTab = document.querySelector('.tab[data-screen="screen-shop"]');
+
+const SHOP_KINDS = ['All', 'Outfits', 'Pickaxes', 'Back Blings', 'Emotes', 'Gliders', 'Wraps',
+  'Bundles', 'Music', 'Cars', 'Other', '★ Wish list'];
+const KIND_FOR_TYPE = { Outfit: 'Outfits', Pickaxe: 'Pickaxes', 'Back Bling': 'Back Blings',
+  Emote: 'Emotes', Glider: 'Gliders', Wrap: 'Wraps' };
+
+let shopItems = [];      // today's shop, boiled down to what a card needs
+let shopKind = 'All';    // which chip is picked
+let shopLoadedAt = 0;
+
+// The service describes each shop offer with LOTS of detail. This keeps just:
+// a key (to recognise the same item on another day), name, kind, price, when it leaves, picture.
+function simplifyOffer(offer) {
+  const item = (offer.brItems || [])[0];
+  const track = (offer.tracks || [])[0];
+  const car = (offer.cars || [])[0];
+  const shopPicture = offer.newDisplayAsset && offer.newDisplayAsset.renderImages
+    && offer.newDisplayAsset.renderImages[0] && offer.newDisplayAsset.renderImages[0].image;
+
+  let key, name, kind, image;
+  if (offer.bundle) {
+    key = 'bundle:' + offer.bundle.name;
+    name = offer.bundle.name;
+    kind = 'Bundles';
+    image = offer.bundle.image || shopPicture;
+  } else if (item) {
+    key = item.id;
+    name = item.name;
+    kind = KIND_FOR_TYPE[item.type && item.type.displayValue] || 'Other';
+    image = shopPicture || (item.images && (item.images.icon || item.images.smallIcon));
+  } else if (track) {
+    key = track.id;
+    name = track.title + (track.artist ? ' · ' + track.artist : '');
+    kind = 'Music';
+    image = track.albumArt;
+  } else if (car) {
+    key = car.id;
+    name = car.name;
+    kind = 'Cars';
+    image = shopPicture || (car.images && (car.images.large || car.images.small));
+  } else {
+    return null; // nothing we know how to show
+  }
+
+  return {
+    key,
+    name: name || 'Mystery item',
+    kind,
+    image: image || '',
+    section: (offer.layout && offer.layout.name || '').trim(),
+    price: offer.finalPrice,
+    was: offer.regularPrice > offer.finalPrice ? offer.regularPrice : null,
+    leaves: offer.outDate,
+  };
+}
+
+function isWished(key) {
+  return data.wishlist.some((wish) => wish.key === key);
+}
+
+function toggleWish(item) {
+  if (isWished(item.key)) {
+    data.wishlist = data.wishlist.filter((wish) => wish.key !== item.key);
+  } else {
+    // Keep the name and picture so the wish still shows on days it's not in the shop.
+    data.wishlist.push({ key: item.key, name: item.name, kind: item.kind, image: item.image });
+  }
+  saveData();
+  drawShop();
+}
+
+// "Leaves today", "Leaves tomorrow", or "Leaves Thu, Nov 26"
+function leavesText(isoTime) {
+  const when = new Date(isoTime);
+  if (isNaN(when)) return '';
+  const days = Math.floor((when - Date.now()) / (24 * 60 * 60 * 1000));
+  if (days < 0) return '';
+  if (days === 0) return 'Leaves today';
+  if (days === 1) return 'Leaves tomorrow';
+  return 'Leaves ' + when.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function makeShopCard(item, inShopToday) {
+  const card = document.createElement('article');
+  card.className = inShopToday ? 'shop-card' : 'shop-card gone';
+
+  if (item.image) {
+    const img = document.createElement('img');
+    img.src = item.image;
+    img.alt = '';
+    img.loading = 'lazy';
+    img.addEventListener('error', () => img.remove());
+    card.appendChild(img);
+  }
+
+  const name = document.createElement('p');
+  name.className = 'name';
+  name.textContent = item.name;
+  const kind = document.createElement('p');
+  kind.className = 'kind';
+  kind.textContent = item.kind + (item.section ? ' · ' + item.section : '');
+  card.append(name, kind);
+
+  if (inShopToday) {
+    const leaves = document.createElement('p');
+    leaves.className = 'leaves';
+    leaves.textContent = leavesText(item.leaves);
+    const price = document.createElement('p');
+    price.className = 'price';
+    if (item.was) {
+      const old = document.createElement('s');
+      old.textContent = item.was.toLocaleString();
+      price.append(old, ' ');
+    }
+    price.append(item.price.toLocaleString() + ' V-Bucks');
+    card.append(leaves, price);
+  } else {
+    const gone = document.createElement('p');
+    gone.className = 'price';
+    gone.textContent = 'Not in the shop today';
+    card.appendChild(gone);
+  }
+
+  const star = document.createElement('button');
+  star.className = isWished(item.key) ? 'star on' : 'star';
+  star.textContent = '★';
+  star.setAttribute('aria-label', isWished(item.key) ? 'Remove from wish list' : 'Add to wish list');
+  star.addEventListener('click', () => toggleWish(item));
+  card.appendChild(star);
+  return card;
+}
+
+// Draw the chips, the wish list message, and the cards that match the chip and search box.
+function drawShop() {
+  shopChips.innerHTML = '';
+  SHOP_KINDS.forEach((kind) => {
+    const chip = document.createElement('button');
+    chip.className = kind === shopKind ? 'chip selected' : 'chip';
+    chip.textContent = kind;
+    chip.addEventListener('click', () => {
+      shopKind = kind;
+      drawShop();
+    });
+    shopChips.appendChild(chip);
+  });
+
+  // Which wished-for items are in the shop today?
+  const wishedHere = shopItems.filter((item) => isWished(item.key));
+  const wishedNames = [...new Set(wishedHere.map((item) => item.name))];
+  shopTab.classList.toggle('has-wish', wishedNames.length > 0);
+  if (wishedNames.length > 0) {
+    wishBox.textContent = '★ In the shop today from your wish list: ' + wishedNames.join(', ');
+    wishBox.hidden = false;
+  } else {
+    wishBox.hidden = true;
+  }
+
+  const search = shopSearch.value.trim().toLowerCase();
+  const matchesSearch = (item) => !search || item.name.toLowerCase().includes(search);
+  shopList.innerHTML = '';
+  let shown = 0;
+
+  if (shopKind === '★ Wish list') {
+    wishedHere.filter(matchesSearch).forEach((item) => {
+      shopList.appendChild(makeShopCard(item, true));
+      shown += 1;
+    });
+    // Wished-for items that aren't in the shop today still show, faded.
+    const keysHere = new Set(wishedHere.map((item) => item.key));
+    data.wishlist.filter((wish) => !keysHere.has(wish.key)).filter(matchesSearch).forEach((wish) => {
+      shopList.appendChild(makeShopCard(wish, false));
+      shown += 1;
+    });
+    shopNote.textContent = data.wishlist.length === 0
+      ? 'Tap the ★ on anything in the shop to add it to your wish list.'
+      : shown + ' on your wish list';
+  } else {
+    shopItems
+      .filter((item) => shopKind === 'All' || item.kind === shopKind)
+      .filter(matchesSearch)
+      .forEach((item) => {
+        shopList.appendChild(makeShopCard(item, true));
+        shown += 1;
+      });
+    shopNote.textContent = shopItems.length === 0 ? shopNote.textContent
+      : shown + ' of ' + shopItems.length + ' things in today\'s shop';
+  }
+}
+
+// Fetch today's shop (at most once every ten minutes).
+async function loadShop() {
+  if (Date.now() - shopLoadedAt < 10 * 60 * 1000) return;
+  shopLoadedAt = Date.now();
+
+  let offers;
+  try {
+    const response = await fetch(SHOP_URL);
+    if (!response.ok) throw new Error('status ' + response.status);
+    offers = (await response.json()).data.entries;
+    if (!Array.isArray(offers)) throw new Error('no entries');
+  } catch (error) {
+    shopLoadedAt = 0; // let the next tap try again
+    if (shopItems.length === 0) shopNote.textContent = 'Can\'t load the shop right now.';
+    return;
+  }
+
+  try {
+    // The same thing can be listed twice (in two sections). Keep one of each.
+    const seen = new Set();
+    shopItems = offers.map(simplifyOffer).filter((item) => {
+      if (!item || seen.has(item.key + '|' + item.price)) return false;
+      seen.add(item.key + '|' + item.price);
+      return true;
+    });
+    drawShop();
+  } catch (error) {
+    showAppBug(error);
+  }
+}
+
+shopSearch.addEventListener('input', drawShop);
+drawShop();
+// If there's a wish list, check the shop right away so the ★ can show on the Shop tab.
+if (data.wishlist.length > 0) loadShop();
 
 // ---------- Self-updating and offline ----------
 // Start the helper in sw.js. It fetches the newest app when online and keeps

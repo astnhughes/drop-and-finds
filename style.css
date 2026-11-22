@@ -27,6 +27,8 @@ body {
   -webkit-user-select: none;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
+  /* Stops the whole page from pinch-zooming. Only the map zooms (see app.js). */
+  touch-action: pan-x pan-y;
 }
 
 /* ---------- Top bar ---------- */
@@ -92,13 +94,53 @@ main {
   height: min(100cqw, 100cqh);
 }
 
+/* The window clips anything outside it, and hands all finger moves to app.js. */
+.map-wrap {
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--panel);
+  touch-action: none;
+}
+
+/* app.js sets this layer's size and position to zoom and slide the map.
+   Pins sit inside it by percentage, so they stay on their spot at any zoom
+   while keeping the same finger-friendly size. */
+.map-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .map {
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 16px;
-  background: var(--panel);
+  -webkit-user-drag: none;
 }
+
+.zoom-buttons {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.zoom-buttons button {
+  width: 52px;
+  height: 52px;
+  border: 0;
+  border-radius: 14px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 28px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5);
+}
+.zoom-buttons button:disabled { opacity: 0.4; }
 
 /* ---------- The "drop here" marker ---------- */
 .drop-banner {

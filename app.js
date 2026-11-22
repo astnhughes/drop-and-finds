@@ -184,6 +184,7 @@ function pick() {
 
   dropName.textContent = chosenSpot.name;
   dropBanner.hidden = false;
+  resetView(); // zoom back out so the marker is definitely in view
 
   showScreen('screen-finds');
 }
@@ -261,7 +262,7 @@ function drawPins() {
     button.style.top = (pin.down * 100) + '%';
     button.setAttribute('aria-label', category.name + (pin.note ? ': ' + pin.note : ''));
     button.addEventListener('click', (event) => {
-      event.stopPropagation(); // don't also count this as a tap on the map
+      if (fingerMoved) return; // you were sliding the map, not tapping the pin
       openPinView(pin);
     });
     pinsLayer.appendChild(button);
@@ -280,17 +281,155 @@ function drawPins() {
     : (pins.length === 1 ? '1 pin' : pins.length + ' pins') + ' · Tap the map to add another.';
 }
 
-// Tapping the map: work out where on the picture the tap was, then open the "New find" card.
-mapWrap.addEventListener('click', (event) => {
+// ---------- Zooming and sliding the map ----------
+// zoom 1 = the whole map fits. zoom 3 = three times bigger.
+// panX / panY = how far the map has slid, measured in "window widths" (always 0 or less).
+const mapLayer = document.getElementById('map-layer');
+const zoomInButton = document.getElementById('zoom-in');
+const zoomOutButton = document.getElementById('zoom-out');
+const MAX_ZOOM = 6;
+let zoom = 1;
+let panX = 0;
+let panY = 0;
+
+function clamp(value, low, high) {
+  return Math.min(high, Math.max(low, value));
+}
+
+// Make the screen match zoom/panX/panY, never letting the map slide off its window.
+function applyView() {
+  zoom = clamp(zoom, 1, MAX_ZOOM);
+  panX = clamp(panX, 1 - zoom, 0);
+  panY = clamp(panY, 1 - zoom, 0);
+  mapLayer.style.width = (zoom * 100) + '%';
+  mapLayer.style.height = (zoom * 100) + '%';
+  mapLayer.style.left = (panX * 100) + '%';
+  mapLayer.style.top = (panY * 100) + '%';
+  zoomInButton.disabled = zoom >= MAX_ZOOM;
+  zoomOutButton.disabled = zoom <= 1;
+}
+
+// Zoom to a new level while keeping the point under your fingers in place.
+function zoomAt(windowX, windowY, newZoom) {
+  newZoom = clamp(newZoom, 1, MAX_ZOOM);
+  const mapX = (windowX - panX) / zoom; // which bit of the map is under that point
+  const mapY = (windowY - panY) / zoom;
+  zoom = newZoom;
+  panX = windowX - mapX * zoom;
+  panY = windowY - mapY * zoom;
+  applyView();
+}
+
+function resetView() {
+  zoom = 1;
+  panX = 0;
+  panY = 0;
+  applyView();
+}
+
+// Where a finger is inside the map window, from 0 to 1 across and down.
+function windowPoint(event) {
   const box = mapWrap.getBoundingClientRect();
-  newPin = {
-    across: (event.clientX - box.left) / box.width,
-    down: (event.clientY - box.top) / box.height,
-    category: null,
-  };
-  drawPins();
-  openPinForm();
+  return { x: (event.clientX - box.left) / box.width, y: (event.clientY - box.top) / box.height };
+}
+
+// Finger tracking. One finger slides the map (or taps). Two fingers pinch to zoom.
+const fingers = new Map(); // finger id -> where it is now
+let gesture = null;        // what things looked like when the current move began
+let fingerMoved = false;   // true once a touch turns into a slide or pinch (so it's not a tap)
+
+function beginGesture() {
+  const points = [...fingers.values()];
+  if (points.length === 1) {
+    gesture = { startX: points[0].x, startY: points[0].y, panX, panY };
+  } else if (points.length >= 2) {
+    const [a, b] = points;
+    const middleX = (a.x + b.x) / 2;
+    const middleY = (a.y + b.y) / 2;
+    gesture = {
+      spread: Math.hypot(a.x - b.x, a.y - b.y),
+      zoom,
+      mapX: (middleX - panX) / zoom, // the bit of map between the two fingers
+      mapY: (middleY - panY) / zoom,
+    };
+  } else {
+    gesture = null;
+  }
+}
+
+mapWrap.addEventListener('pointerdown', (event) => {
+  if (event.target.closest('.zoom-buttons')) return;
+  if (fingers.size === 0) fingerMoved = false;
+  fingers.set(event.pointerId, windowPoint(event));
+  beginGesture();
 });
+
+window.addEventListener('pointermove', (event) => {
+  if (!fingers.has(event.pointerId)) return;
+  fingers.set(event.pointerId, windowPoint(event));
+  const points = [...fingers.values()];
+
+  if (points.length === 1) {
+    const movedX = points[0].x - gesture.startX;
+    const movedY = points[0].y - gesture.startY;
+    // A tiny wobble still counts as a tap. More than that is a slide.
+    const wobble = 8 / mapWrap.getBoundingClientRect().width;
+    if (Math.hypot(movedX, movedY) > wobble) fingerMoved = true;
+    if (fingerMoved) {
+      panX = gesture.panX + movedX;
+      panY = gesture.panY + movedY;
+      applyView();
+    }
+  } else if (points.length >= 2) {
+    fingerMoved = true;
+    const [a, b] = points;
+    const spread = Math.hypot(a.x - b.x, a.y - b.y);
+    zoom = clamp(gesture.zoom * spread / gesture.spread, 1, MAX_ZOOM);
+    panX = (a.x + b.x) / 2 - gesture.mapX * zoom;
+    panY = (a.y + b.y) / 2 - gesture.mapY * zoom;
+    applyView();
+  }
+});
+
+function fingerLifted(event, wasCancelled) {
+  if (!fingers.has(event.pointerId)) return;
+  const point = fingers.get(event.pointerId);
+  fingers.delete(event.pointerId);
+
+  // A clean tap on the map (not a slide, not on a pin): drop a new pin there.
+  const tappedMap = fingers.size === 0 && !fingerMoved && !wasCancelled
+    && !event.target.closest('.pin');
+  if (tappedMap) {
+    newPin = {
+      across: (point.x - panX) / zoom,
+      down: (point.y - panY) / zoom,
+      category: null,
+    };
+    drawPins();
+    openPinForm();
+  }
+  beginGesture();
+}
+
+window.addEventListener('pointerup', (event) => fingerLifted(event, false));
+window.addEventListener('pointercancel', (event) => fingerLifted(event, true));
+
+// The + and − buttons zoom around the middle of the window.
+zoomInButton.addEventListener('click', () => zoomAt(0.5, 0.5, zoom * 1.6));
+zoomOutButton.addEventListener('click', () => zoomAt(0.5, 0.5, zoom / 1.6));
+
+// On a computer, the mouse wheel zooms too (handy for testing on the Mac).
+mapWrap.addEventListener('wheel', (event) => {
+  event.preventDefault();
+  const point = windowPoint(event);
+  zoomAt(point.x, point.y, zoom * (event.deltaY < 0 ? 1.15 : 1 / 1.15));
+}, { passive: false });
+
+// Safari has its own pinch-the-whole-page zoom. Turn it off so only the map zooms
+// and pop-up cards always stay where you can see them.
+document.addEventListener('gesturestart', (event) => event.preventDefault());
+
+applyView();
 
 // Build the five category buttons once.
 CATEGORIES.forEach((category) => {
@@ -429,3 +568,10 @@ window.addEventListener('error', (event) => showAppBug(event.error || event.mess
 window.addEventListener('unhandledrejection', (event) => showAppBug(event.reason));
 
 loadMap();
+
+// ---------- Self-updating and offline ----------
+// Start the helper in sw.js. It fetches the newest app when online and keeps
+// a saved copy for when there's no internet.
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch((error) => console.error(error));
+}

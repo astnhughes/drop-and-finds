@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=10">
+  <link rel="stylesheet" href="style.css?v=11">
 </head>
 <body>
   <header class="top-bar">
@@ -52,7 +52,7 @@
     <section id="screen-finds" class="screen" hidden>
       <!-- Shows after you tap Pick on the wheel -->
       <div id="drop-banner" class="drop-banner" hidden>
-        <span>Dropping at <strong id="drop-name"></strong></span>
+        <span>Dropping at <strong id="drop-name"></strong><span id="drop-caution" hidden> (new map: marker may be a little off)</span></span>
         <button id="drop-clear" class="small-button">Clear</button>
       </div>
 
@@ -139,6 +139,8 @@
       <!-- The hidden file chooser that Import opens -->
       <input id="import-file" type="file" accept=".json,application/json" hidden>
       <p id="backup-result" class="card-text result-text" hidden></p>
+      <p class="fine-print">Drop &amp; Finds is a fan-made app. It is not made by or connected to Epic Games.
+        Map data comes from fortnite-api.com.</p>
       <div class="card-actions">
         <button id="backup-close" class="big-button">Close</button>
       </div>
@@ -151,6 +153,6 @@
     <button class="tab" data-screen="screen-finds">My Finds</button>
   </nav>
 
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>

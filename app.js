@@ -165,6 +165,7 @@ const dropName = document.getElementById('drop-name');
 const MAP_SCALE = 3.225e-6;   // picture-widths per game unit
 const MAP_CENTER_X = 0.4772;  // where game x = 0 sits across the picture
 const MAP_CENTER_Y = 0.4968;  // where game y = 0 sits down the picture
+const MEASURED_SEASON = '43';  // the season those three numbers were measured on
 
 function spotToPicture(spot) {
   return {
@@ -184,6 +185,8 @@ function pick() {
   dropMarker.hidden = false;
 
   dropName.textContent = chosenSpot.name;
+  // On a brand-new map the three numbers above haven't been re-measured yet, so say so.
+  document.getElementById('drop-caution').hidden = data.currentSeason === MEASURED_SEASON;
   dropBanner.hidden = false;
   resetView(); // zoom back out so the marker is definitely in view
 
@@ -628,6 +631,10 @@ function disarmDelete() {
 }
 
 saveButton.addEventListener('click', savePin);
+// Pressing Return on the keyboard saves too.
+noteInput.addEventListener('keydown', (event) => {
+  if (event.key === 'Enter' && !saveButton.hidden && !saveButton.disabled) savePin();
+});
 deleteButton.addEventListener('click', deletePin);
 document.getElementById('pin-cancel').addEventListener('click', closeCards);
 // Tapping the dark area outside the card closes it too.
@@ -986,11 +993,17 @@ async function loadMap() {
     keepSeasonPicture(data.currentSeason, todaysPictureUrl, todaysSmallPictureUrl);
     showSeason(data.currentSeason);
 
-    statusLine.textContent = (newSeasonStarted ? 'New season! ' : '')
-      + (navigator.onLine ? '' : 'Offline · ')
-      + allSpots.length + ' locations'
-      + (season.build ? ' · Season v' + season.build : '');
-    statusLine.classList.remove('problem');
+    if (allSpots.length === 0) {
+      // Right after a new season starts, the service can take a while to list the new spots.
+      showProblem('The map service has no locations listed yet. The wheel will fill in when it does.');
+      resultLine.textContent = 'No spots yet';
+    } else {
+      statusLine.textContent = (newSeasonStarted ? 'New season! ' : '')
+        + (navigator.onLine ? '' : 'Offline · ')
+        + allSpots.length + ' locations'
+        + (season.build ? ' · Season v' + season.build : '');
+      statusLine.classList.remove('problem');
+    }
   } catch (error) {
     showAppBug(error);
   }

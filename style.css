@@ -581,3 +581,10 @@ main {
   font-weight: 700;
 }
 .result-text.problem { color: #ff8a7a; }
+
+.fine-print {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}

@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=13">
+  <link rel="stylesheet" href="style.css?v=14">
 </head>
 <body>
   <header class="top-bar">
@@ -173,6 +173,16 @@
         <button id="backup-close" class="big-button">Close</button>
       </div>
     </div>
+
+    <!-- The card that plays an item's showcase video -->
+    <div id="video-card" class="card video-card" hidden>
+      <h2 id="video-title"></h2>
+      <div id="video-frame" class="video-frame"></div>
+      <p class="fine-print">Video from YouTube, made by a fan channel.</p>
+      <div class="card-actions">
+        <button id="video-close" class="big-button primary">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- The two big buttons at the bottom that switch screens -->
@@ -183,6 +193,6 @@
     <button class="tab" data-screen="screen-shop">Shop</button>
   </nav>
 
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>

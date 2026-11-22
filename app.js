@@ -582,6 +582,7 @@ function openPinForm(pin = null) {
 
 function closeCards() {
   backdrop.hidden = true;
+  document.getElementById('video-frame').innerHTML = ''; // removing the player stops the video
   noteInput.blur(); // puts the keyboard away
   newPin = null;
   editingPin = null;
@@ -907,6 +908,7 @@ function importBackup(text) {
       name: wish.name.slice(0, 120),
       kind: typeof wish.kind === 'string' ? wish.kind : 'Other',
       image: typeof wish.image === 'string' && wish.image.startsWith('https://') ? wish.image : '',
+      video: isVideoId(wish.video) ? wish.video : '',
     });
   });
 
@@ -926,6 +928,7 @@ document.getElementById('backup-button').addEventListener('click', () => {
   showCard(backupCard);
 });
 document.getElementById('backup-close').addEventListener('click', closeCards);
+document.getElementById('video-close').addEventListener('click', closeCards);
 document.getElementById('export-button').addEventListener('click', exportBackup);
 document.getElementById('import-button').addEventListener('click', () => importFile.click());
 importFile.addEventListener('change', async () => {
@@ -1263,16 +1266,26 @@ function simplifyOffer(offer) {
     return null; // nothing we know how to show
   }
 
+  // Many items come with a short showcase video on YouTube (just its 11-letter id).
+  const withVideo = (item && item.showcaseVideo) ? item : (offer.brItems || []).find((one) => one.showcaseVideo);
+
   return {
     key,
     name: name || 'Mystery item',
     kind,
     image: image || '',
+    video: withVideo && isVideoId(withVideo.showcaseVideo) ? withVideo.showcaseVideo : '',
     section: (offer.layout && offer.layout.name || '').trim(),
     price: offer.finalPrice,
     was: offer.regularPrice > offer.finalPrice ? offer.regularPrice : null,
     leaves: offer.outDate,
   };
+}
+
+// A real YouTube id is exactly 11 letters, numbers, dashes or underscores.
+// Checking this means nothing odd can ever be put into the video player's address.
+function isVideoId(id) {
+  return typeof id === 'string' && /^[\w-]{11}$/.test(id);
 }
 
 function isWished(key) {
@@ -1284,7 +1297,7 @@ function toggleWish(item) {
     data.wishlist = data.wishlist.filter((wish) => wish.key !== item.key);
   } else {
     // Keep the name and picture so the wish still shows on days it's not in the shop.
-    data.wishlist.push({ key: item.key, name: item.name, kind: item.kind, image: item.image });
+    data.wishlist.push({ key: item.key, name: item.name, kind: item.kind, image: item.image, video: item.video || '' });
   }
   saveData();
   drawShop();
@@ -1342,6 +1355,14 @@ function makeShopCard(item, inShopToday) {
     card.appendChild(gone);
   }
 
+  if (isVideoId(item.video)) {
+    const watch = document.createElement('button');
+    watch.className = 'watch-button';
+    watch.textContent = '▶ Watch';
+    watch.addEventListener('click', () => openVideo(item));
+    card.appendChild(watch);
+  }
+
   const star = document.createElement('button');
   star.className = isWished(item.key) ? 'star on' : 'star';
   star.textContent = '★';
@@ -1349,6 +1370,24 @@ function makeShopCard(item, inShopToday) {
   star.addEventListener('click', () => toggleWish(item));
   card.appendChild(star);
   return card;
+}
+
+// Play an item's showcase video in a pop-up card.
+// "youtube-nocookie" is YouTube's privacy mode: it doesn't track you until you press play.
+// "rel=0" asks YouTube to keep its end-of-video suggestions to the same channel.
+function openVideo(item) {
+  if (!isVideoId(item.video)) return;
+  document.getElementById('video-title').textContent = item.name;
+  const player = document.createElement('iframe');
+  player.src = 'https://www.youtube-nocookie.com/embed/' + item.video + '?rel=0&playsinline=1&autoplay=1';
+  player.title = item.name + ' video';
+  player.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
+  player.allowFullscreen = true;
+  player.referrerPolicy = 'strict-origin-when-cross-origin';
+  const frame = document.getElementById('video-frame');
+  frame.innerHTML = '';
+  frame.appendChild(player);
+  showCard(document.getElementById('video-card'));
 }
 
 // Draw the chips, the wish list message, and the cards that match the chip and search box.

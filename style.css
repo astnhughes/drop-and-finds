@@ -742,3 +742,34 @@ main {
   color: var(--accent);
 }
 .tab.active.has-wish::after { color: var(--accent-text); }
+
+/* ---------- Showcase videos ---------- */
+.watch-button {
+  margin: 0 10px 10px;
+  min-height: 44px;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+}
+.shop-card .price { margin-bottom: 8px; }
+.shop-card { justify-content: flex-start; }
+.shop-card .watch-button { margin-top: auto; }
+
+.video-card { max-width: 760px; }
+.video-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #000;
+}
+.video-frame iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}

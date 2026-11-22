@@ -759,17 +759,30 @@ main {
 .shop-card { justify-content: flex-start; }
 .shop-card .watch-button { margin-top: auto; }
 
-.video-card { max-width: 760px; }
-.video-frame {
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  border-radius: 12px;
+/* The square box holding a card's picture, and its video while one plays */
+.card-media {
+  position: relative;
+  aspect-ratio: 1;
   overflow: hidden;
-  background: #000;
+  background: var(--background);
 }
-.video-frame iframe {
-  display: block;
+.card-media img {
   width: 100%;
   height: 100%;
+}
+/* The video is wide (16:9) and the box is square, so the video is made as tall as
+   the box and centered; its left and right edges are trimmed off.
+   pointer-events: none means taps go straight through it, so nothing in YouTube's
+   player can be pressed. */
+.card-media iframe {
+  position: absolute;
+  /* 135% tall also trims the top and bottom strips, where YouTube's title
+     and the channel's banner usually sit. */
+  top: 50%;
+  left: 50%;
+  height: 135%;
+  width: 240%;
+  transform: translate(-50%, -50%);
   border: 0;
+  pointer-events: none;
 }

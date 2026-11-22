@@ -16,6 +16,7 @@ function showScreen(screenId) {
   });
   if (screenId === 'screen-news') loadNewsScreen(); // freshen the news when you open it
   if (screenId === 'screen-shop') loadShop();        // and the shop
+  else stopCardVideo();                              // leaving the shop stops any video
 }
 
 tabs.forEach((tab) => {
@@ -582,7 +583,6 @@ function openPinForm(pin = null) {
 
 function closeCards() {
   backdrop.hidden = true;
-  document.getElementById('video-frame').innerHTML = ''; // removing the player stops the video
   noteInput.blur(); // puts the keyboard away
   newPin = null;
   editingPin = null;
@@ -928,7 +928,6 @@ document.getElementById('backup-button').addEventListener('click', () => {
   showCard(backupCard);
 });
 document.getElementById('backup-close').addEventListener('click', closeCards);
-document.getElementById('video-close').addEventListener('click', closeCards);
 document.getElementById('export-button').addEventListener('click', exportBackup);
 document.getElementById('import-button').addEventListener('click', () => importFile.click());
 importFile.addEventListener('change', async () => {
@@ -1318,14 +1317,18 @@ function makeShopCard(item, inShopToday) {
   const card = document.createElement('article');
   card.className = inShopToday ? 'shop-card' : 'shop-card gone';
 
+  // The picture sits in a square box. A playing video goes on top of it in the same box.
+  const media = document.createElement('div');
+  media.className = 'card-media';
   if (item.image) {
     const img = document.createElement('img');
     img.src = item.image;
     img.alt = '';
     img.loading = 'lazy';
     img.addEventListener('error', () => img.remove());
-    card.appendChild(img);
+    media.appendChild(img);
   }
+  card.appendChild(media);
 
   const name = document.createElement('p');
   name.className = 'name';
@@ -1359,7 +1362,7 @@ function makeShopCard(item, inShopToday) {
     const watch = document.createElement('button');
     watch.className = 'watch-button';
     watch.textContent = '▶ Watch';
-    watch.addEventListener('click', () => openVideo(item));
+    watch.addEventListener('click', () => toggleCardVideo(item, media, watch));
     card.appendChild(watch);
   }
 
@@ -1372,26 +1375,40 @@ function makeShopCard(item, inShopToday) {
   return card;
 }
 
-// Play an item's showcase video in a pop-up card.
-// "youtube-nocookie" is YouTube's privacy mode: it doesn't track you until you press play.
-// "rel=0" asks YouTube to keep its end-of-video suggestions to the same channel.
-function openVideo(item) {
-  if (!isVideoId(item.video)) return;
-  document.getElementById('video-title').textContent = item.name;
+// ---------- Playing a showcase video right on a card ----------
+// Tapping Watch swaps the card's picture for the moving clip: silent, looping,
+// with YouTube's buttons hidden and nothing inside it tappable. One card plays at a time.
+// "youtube-nocookie" is YouTube's privacy mode.
+let playingCard = null; // { media, button } for the card that's playing, if any
+
+function stopCardVideo() {
+  if (!playingCard) return;
+  const player = playingCard.media.querySelector('iframe');
+  if (player) player.remove();
+  playingCard.button.textContent = '▶ Watch';
+  playingCard = null;
+}
+
+function toggleCardVideo(item, media, button) {
+  const wasThisCard = playingCard && playingCard.media === media;
+  stopCardVideo();
+  if (wasThisCard || !isVideoId(item.video)) return; // tapping Stop just stops
+
   const player = document.createElement('iframe');
-  player.src = 'https://www.youtube-nocookie.com/embed/' + item.video + '?rel=0&playsinline=1&autoplay=1';
+  player.src = 'https://www.youtube-nocookie.com/embed/' + item.video
+    + '?autoplay=1&mute=1&loop=1&playlist=' + item.video   // silent, and starts over when it ends
+    + '&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&iv_load_policy=3';
   player.title = item.name + ' video';
-  player.allow = 'autoplay; encrypted-media; picture-in-picture; fullscreen';
-  player.allowFullscreen = true;
+  player.allow = 'autoplay; encrypted-media';
   player.referrerPolicy = 'strict-origin-when-cross-origin';
-  const frame = document.getElementById('video-frame');
-  frame.innerHTML = '';
-  frame.appendChild(player);
-  showCard(document.getElementById('video-card'));
+  media.appendChild(player);
+  button.textContent = '■ Stop';
+  playingCard = { media, button };
 }
 
 // Draw the chips, the wish list message, and the cards that match the chip and search box.
 function drawShop() {
+  stopCardVideo(); // the cards are about to be redrawn
   shopChips.innerHTML = '';
   SHOP_KINDS.forEach((kind) => {
     const chip = document.createElement('button');

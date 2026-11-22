@@ -14,6 +14,7 @@ function showScreen(screenId) {
   document.querySelectorAll('.screen').forEach((screen) => {
     screen.hidden = screen.id !== screenId;
   });
+  if (screenId === 'screen-news') loadNewsScreen(); // freshen the news when you open it
 }
 
 tabs.forEach((tab) => {
@@ -1046,6 +1047,154 @@ window.addEventListener('error', (event) => showAppBug(event.error || event.mess
 window.addEventListener('unhandledrejection', (event) => showAppBug(event.reason));
 
 loadMap();
+
+// ---------- News screen: server status and today's news ----------
+const STATUS_URL = 'https://status.epicgames.com/api/v2/summary.json'; // Epic's own status page
+const NEWS_URL = 'https://fortnite-api.com/v2/news/br';                // today's in-game news
+
+const serverDot = document.getElementById('server-dot');
+const serverHeadline = document.getElementById('server-headline');
+const serverDetails = document.getElementById('server-details');
+const newsList = document.getElementById('news-list');
+const newsNote = document.getElementById('news-note');
+let newsLoadedAt = 0;
+
+// Only ask again if it's been five minutes, so tapping the tab a lot doesn't spam the services.
+function loadNewsScreen() {
+  if (Date.now() - newsLoadedAt < 5 * 60 * 1000) return;
+  newsLoadedAt = Date.now();
+  loadServerStatus();
+  loadNews();
+}
+
+function addLine(parent, text) {
+  const line = document.createElement('p');
+  line.textContent = text;
+  parent.appendChild(line);
+}
+
+function friendlyTime(isoTime) {
+  const when = new Date(isoTime);
+  if (isNaN(when)) return '';
+  return when.toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function showServerLight(color, headline) {
+  serverDot.className = 'server-dot' + (color ? ' ' + color : '');
+  serverHeadline.textContent = headline;
+}
+
+// Epic's status page lists lots of games. We pick out the Fortnite parts
+// (Login, Matchmaking, Item Shop...) and show the worst news among them.
+async function loadServerStatus() {
+  serverDetails.innerHTML = '';
+  let summary;
+  try {
+    const response = await fetch(STATUS_URL);
+    if (!response.ok) throw new Error('status ' + response.status);
+    summary = await response.json();
+  } catch (error) {
+    showServerLight('', 'Can\'t check the servers right now.');
+    newsLoadedAt = 0; // let the next tap try again
+    return;
+  }
+
+  try {
+    const parts = Array.isArray(summary.components) ? summary.components : [];
+    const fortniteGroup = parts.find((part) => part.group && part.name === 'Fortnite');
+    const fortniteParts = fortniteGroup ? parts.filter((part) => part.group_id === fortniteGroup.id) : [];
+    const fortniteIds = new Set(fortniteParts.map((part) => part.id).concat(fortniteGroup ? [fortniteGroup.id] : []));
+    const aboutFortnite = (item) => !Array.isArray(item.components) || item.components.length === 0
+      || item.components.some((part) => fortniteIds.has(part.id));
+
+    const troubled = fortniteParts.filter((part) => part.status !== 'operational');
+    const inMaintenance = troubled.some((part) => part.status === 'under_maintenance');
+    const majorOutage = troubled.some((part) => part.status === 'major_outage');
+
+    if (!fortniteGroup) {
+      showServerLight('', 'Couldn\'t find Fortnite on Epic\'s status page.');
+    } else if (troubled.length === 0) {
+      showServerLight('good', 'Fortnite servers are up');
+    } else if (inMaintenance) {
+      showServerLight('bad', 'Fortnite is down for maintenance');
+    } else if (majorOutage) {
+      showServerLight('bad', 'Fortnite servers are having big problems');
+    } else {
+      showServerLight('warn', 'Fortnite servers are having some trouble');
+    }
+
+    const statusWords = {
+      degraded_performance: 'running slowly',
+      partial_outage: 'partly down',
+      major_outage: 'down',
+      under_maintenance: 'under maintenance',
+    };
+    troubled.forEach((part) => addLine(serverDetails, part.name + ': ' + (statusWords[part.status] || part.status)));
+
+    // Problems Epic is working on right now
+    (summary.incidents || []).filter(aboutFortnite).forEach((incident) => {
+      addLine(serverDetails, 'Epic says: ' + incident.name);
+    });
+
+    // Planned downtime (updates usually come with a few hours of this)
+    (summary.scheduled_maintenances || []).filter(aboutFortnite).forEach((planned) => {
+      const starts = friendlyTime(planned.scheduled_for);
+      const ends = friendlyTime(planned.scheduled_until);
+      addLine(serverDetails, 'Planned downtime: ' + planned.name
+        + (starts ? ' · starts ' + starts : '') + (ends ? ' · ends ' + ends : ''));
+    });
+  } catch (error) {
+    showAppBug(error);
+  }
+}
+
+// Today's in-game news: one card per story.
+async function loadNews() {
+  let stories;
+  try {
+    const response = await fetch(NEWS_URL);
+    if (!response.ok) throw new Error('status ' + response.status);
+    stories = (await response.json()).data.motds;
+    if (!Array.isArray(stories)) throw new Error('no stories');
+  } catch (error) {
+    if (!newsList.children.length) newsNote.textContent = 'Can\'t load the news right now.';
+    newsLoadedAt = 0;
+    return;
+  }
+
+  try {
+    newsList.innerHTML = '';
+    stories
+      .filter((story) => !story.hidden)
+      .sort((a, b) => (b.sortingPriority || 0) - (a.sortingPriority || 0))
+      .forEach((story) => {
+        const card = document.createElement('article');
+        card.className = 'news-card';
+
+        const picture = story.tileImage || story.image;
+        if (picture) {
+          const img = document.createElement('img');
+          img.src = picture;
+          img.alt = '';
+          img.loading = 'lazy';
+          img.addEventListener('error', () => img.remove()); // no picture is better than a broken one
+          card.appendChild(img);
+        }
+        const title = document.createElement('h3');
+        title.textContent = story.title || '';
+        const body = document.createElement('p');
+        body.textContent = story.body || '';
+        card.append(title, body);
+        newsList.appendChild(card);
+      });
+
+    newsNote.textContent = newsList.children.length
+      ? 'News comes from the game itself, by way of fortnite-api.com.'
+      : 'No news today.';
+  } catch (error) {
+    showAppBug(error);
+  }
+}
 
 // ---------- Self-updating and offline ----------
 // Start the helper in sw.js. It fetches the newest app when online and keeps

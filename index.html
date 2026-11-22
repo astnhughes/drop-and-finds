@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=11">
+  <link rel="stylesheet" href="style.css?v=12">
 </head>
 <body>
   <header class="top-bar">
@@ -96,6 +96,22 @@
       </div>
       <p id="finds-hint" class="hint">Tap the map to drop a pin.</p>
     </section>
+
+    <!-- Screen 3: News (server status and today's in-game news) -->
+    <section id="screen-news" class="screen news-screen" hidden>
+      <!-- Are the Fortnite servers working? app.js fills this in. -->
+      <div id="server-card" class="server-card">
+        <span id="server-dot" class="server-dot"></span>
+        <div>
+          <p id="server-headline" class="server-headline">Checking the servers…</p>
+          <div id="server-details" class="server-details"></div>
+        </div>
+      </div>
+
+      <h2 class="section-title">Today in Fortnite</h2>
+      <div id="news-list" class="news-list"></div>
+      <p id="news-note" class="hint"></p>
+    </section>
   </main>
 
   <!-- Pop-up cards. The dark backdrop covers the app while one is open. -->
@@ -151,8 +167,9 @@
   <nav class="tabs">
     <button class="tab active" data-screen="screen-drop">Drop Picker</button>
     <button class="tab" data-screen="screen-finds">My Finds</button>
+    <button class="tab" data-screen="screen-news">News</button>
   </nav>
 
-  <script src="app.js?v=11"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

@@ -1222,11 +1222,15 @@ const shopSearch = document.getElementById('shop-search');
 const wishBox = document.getElementById('wish-box');
 const shopTab = document.querySelector('.tab[data-screen="screen-shop"]');
 
-const SHOP_KINDS = ['All', 'Outfits', 'Pickaxes', 'Back Blings', 'Emotes', 'Gliders', 'Wraps',
+const NEW_CHIP = '✨ New this update';
+const SHOP_KINDS = ['All', NEW_CHIP, 'Outfits', 'Pickaxes', 'Back Blings', 'Emotes', 'Gliders', 'Wraps',
   'Bundles', 'Music', 'Cars', 'Other', '★ Wish list'];
 const KIND_FOR_TYPE = { Outfit: 'Outfits', Pickaxe: 'Pickaxes', 'Back Bling': 'Back Blings',
   Emote: 'Emotes', Glider: 'Gliders', Wrap: 'Wraps' };
 
+const NEW_ITEMS_URL = 'https://fortnite-api.com/v2/cosmetics/new'; // things added in the latest update
+let newItems = [];       // those new things, boiled down the same way as shop items
+let newItemsVersion = ''; // which update they came with, like "43.10"
 let shopItems = [];      // today's shop, boiled down to what a card needs
 let shopKind = 'All';    // which chip is picked
 let shopLoadedAt = 0;
@@ -1313,9 +1317,11 @@ function leavesText(isoTime) {
   return 'Leaves ' + when.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
-function makeShopCard(item, inShopToday) {
+// awayText is what to say on a card for something that isn't in the shop today.
+// faded = draw it dimmed (used on the wish list for things that have left the shop).
+function makeShopCard(item, inShopToday, awayText = 'Not in the shop today', faded = true) {
   const card = document.createElement('article');
-  card.className = inShopToday ? 'shop-card' : 'shop-card gone';
+  card.className = (inShopToday || !faded) ? 'shop-card' : 'shop-card gone';
 
   // The picture sits in a square box. A playing video goes on top of it in the same box.
   const media = document.createElement('div');
@@ -1354,7 +1360,7 @@ function makeShopCard(item, inShopToday) {
   } else {
     const gone = document.createElement('p');
     gone.className = 'price';
-    gone.textContent = 'Not in the shop today';
+    gone.textContent = awayText;
     card.appendChild(gone);
   }
 
@@ -1484,6 +1490,20 @@ function drawShop() {
     shopNote.textContent = data.wishlist.length === 0
       ? 'Tap the ★ on anything in the shop to add it to your wish list.'
       : shown + ' on your wish list';
+  } else if (shopKind === NEW_CHIP) {
+    // Everything added in the latest update. If it's in the shop today, show its
+    // shop card (with the price). If not, say so. Either way it can be starred.
+    newItems.filter(matchesSearch).forEach((fresh) => {
+      const inShop = shopItems.find((item) => item.key === fresh.key);
+      shopList.appendChild(inShop
+        ? makeShopCard(inShop, true)
+        : makeShopCard(fresh, false, 'Not in the shop yet' + (fresh.added ? ' · added ' + fresh.added : ''), false));
+      shown += 1;
+    });
+    shopNote.textContent = newItems.length === 0
+      ? 'Can\'t load the new items right now.'
+      : shown + ' new things' + (newItemsVersion ? ' in update ' + newItemsVersion : '')
+        + '. Star one to be told when it reaches the shop.';
   } else {
     shopItems
       .filter((item) => shopKind === 'All' || item.kind === shopKind)
@@ -1514,6 +1534,8 @@ async function loadShop() {
     return;
   }
 
+  loadNewItems(); // fetched alongside; fills in the "New this update" chip when it arrives
+
   try {
     // The same thing can be listed twice (in two sections). Keep one of each.
     const seen = new Set();
@@ -1525,6 +1547,37 @@ async function loadShop() {
     drawShop();
   } catch (error) {
     showAppBug(error);
+  }
+}
+
+// Fetch the list of things added in the latest update. Not everything new is for sale
+// yet, which is why this is separate from the shop.
+async function loadNewItems() {
+  try {
+    const response = await fetch(NEW_ITEMS_URL);
+    if (!response.ok) throw new Error('status ' + response.status);
+    const fresh = (await response.json()).data;
+    const found = /Release-(\d+\.\d+)/.exec(fresh.build || '');
+    newItemsVersion = found ? found[1] : '';
+
+    newItems = (fresh.items.br || [])
+      .slice()
+      .sort((a, b) => String(b.added).localeCompare(String(a.added))) // newest first
+      .map((item) => {
+        const added = new Date(item.added);
+        return {
+          key: item.id,
+          name: item.name || 'Mystery item',
+          kind: KIND_FOR_TYPE[item.type && item.type.displayValue] || (item.type && item.type.displayValue) || 'Other',
+          image: (item.images && (item.images.featured || item.images.icon || item.images.smallIcon)) || '',
+          video: isVideoId(item.showcaseVideo) ? item.showcaseVideo : '',
+          section: item.set && item.set.value ? item.set.value : '',
+          added: isNaN(added) ? '' : added.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+        };
+      });
+    drawShop();
+  } catch (error) {
+    console.error(error); // the shop itself still works without this list
   }
 }
 

@@ -26,12 +26,25 @@
   </header>
 
   <main>
-    <!-- Screen 1: Drop Picker (the wheel arrives in step 2) -->
-    <section id="screen-drop" class="screen">
-      <div class="map-box">
-        <img id="map-named" class="map" alt="Map with location names">
+    <!-- Screen 1: Drop Picker -->
+    <section id="screen-drop" class="screen drop-screen">
+      <!-- The wheel. app.js draws the slices inside the <svg>. -->
+      <div class="wheel-box">
+        <div class="wheel-wrap">
+          <svg id="wheel" class="wheel" viewBox="0 0 500 500" aria-label="Wheel of locations"></svg>
+          <div class="pointer"></div>
+        </div>
       </div>
-      <p class="hint">The spinning wheel goes here next.</p>
+
+      <!-- The answer and the buttons -->
+      <div class="drop-panel">
+        <p class="drop-label">Drop at</p>
+        <p id="result" class="result">Tap Spin!</p>
+        <button id="spin" class="big-button primary" disabled>Spin</button>
+        <button id="skip" class="big-button" disabled>Skip this spot</button>
+        <p id="skipped-note" class="hint" hidden></p>
+        <button id="reset" class="small-button" hidden>Put all spots back</button>
+      </div>
     </section>
 
     <!-- Screen 2: My Finds (pins arrive in step 3) -->

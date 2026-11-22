@@ -98,6 +98,131 @@ main {
   color: var(--text-dim);
 }
 
+/* ---------- Drop Picker ---------- */
+/* Wheel colors. Max: change these four to recolor the slices. */
+:root {
+  --slice-1: #ffc83d;
+  --slice-2: #3ec6ff;
+  --slice-3: #ff6b9a;
+  --slice-4: #7be06a;
+  --slice-text: #12141c;
+}
+
+/* Upright iPad: wheel on top, buttons below. Sideways: wheel left, buttons right. */
+.drop-screen { flex-direction: column; gap: 16px; }
+@media (orientation: landscape) {
+  .drop-screen { flex-direction: row; gap: 24px; }
+}
+
+.wheel-box {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  align-self: stretch;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  container-type: size; /* lets the wheel measure this box */
+}
+
+/* A square as big as the box allows */
+.wheel-wrap {
+  position: relative;
+  width: min(100cqw, 100cqh);
+  height: min(100cqw, 100cqh);
+}
+
+.wheel {
+  width: 100%;
+  height: 100%;
+  display: block;
+  /* The spin: 4 seconds, fast at first, slowing to a stop */
+  transition: transform 4s cubic-bezier(0.12, 0.75, 0.15, 1);
+}
+
+.wheel text {
+  font-size: 15px;
+  font-weight: 800;
+  fill: var(--slice-text);
+}
+
+/* The little arrow at the top that shows the winner */
+.pointer {
+  position: absolute;
+  top: -2px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 16px solid transparent;
+  border-right: 16px solid transparent;
+  border-top: 34px solid var(--text);
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6));
+}
+
+.drop-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 12px;
+  width: 100%;
+  max-width: 420px;
+  text-align: center;
+}
+@media (orientation: landscape) {
+  .drop-panel { width: 320px; align-self: center; }
+}
+
+.drop-label {
+  margin: 0;
+  font-size: 15px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--text-dim);
+}
+
+.result {
+  margin: 0;
+  min-height: 2.4em; /* room for a two-line name so buttons don't jump */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: var(--accent);
+}
+
+.big-button {
+  min-height: 64px;
+  border: 2px solid var(--text-dim);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 21px;
+  font-weight: 800;
+}
+
+.big-button.primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--accent-text);
+}
+
+.big-button:disabled { opacity: 0.35; }
+
+.small-button {
+  min-height: 48px;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font: inherit;
+  font-size: 17px;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
 /* ---------- Bottom tabs ---------- */
 .tabs {
   display: flex;

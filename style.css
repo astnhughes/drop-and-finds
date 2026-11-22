@@ -770,19 +770,18 @@ main {
   width: 100%;
   height: 100%;
 }
-/* The video is wide (16:9) and the box is square, so the video is made as tall as
-   the box and centered; its left and right edges are trimmed off.
-   pointer-events: none means taps go straight through it, so nothing in YouTube's
-   player can be pressed. */
+/* While a card plays, it grows to two columns wide and its box becomes video-shaped
+   (16:9), so the whole clip shows with nothing trimmed off. */
+.shop-card.playing { grid-column: span 2; }
+.shop-card.playing .card-media { aspect-ratio: 16 / 9; }
+
+/* pointer-events: none means taps go straight through the video, so nothing in
+   YouTube's player can be pressed. */
 .card-media iframe {
   position: absolute;
-  /* 135% tall also trims the top and bottom strips, where YouTube's title
-     and the channel's banner usually sit. */
-  top: 50%;
-  left: 50%;
-  height: 135%;
-  width: 240%;
-  transform: translate(-50%, -50%);
+  inset: 0;
+  width: 100%;
+  height: 100%;
   border: 0;
   pointer-events: none;
 }

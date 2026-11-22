@@ -1376,7 +1376,7 @@ function makeShopCard(item, inShopToday) {
 }
 
 // ---------- Playing a showcase video right on a card ----------
-// Tapping Watch swaps the card's picture for the moving clip: silent, looping,
+// Tapping Watch makes the card wider and swaps its picture for the moving clip: silent, looping,
 // with YouTube's buttons hidden and nothing inside it tappable. One card plays at a time.
 // "youtube-nocookie" is YouTube's privacy mode.
 let playingCard = null; // { media, button } for the card that's playing, if any
@@ -1385,6 +1385,7 @@ function stopCardVideo() {
   if (!playingCard) return;
   const player = playingCard.media.querySelector('iframe');
   if (player) player.remove();
+  playingCard.media.parentElement.classList.remove('playing');
   playingCard.button.textContent = '▶ Watch';
   playingCard = null;
 }
@@ -1397,13 +1398,25 @@ function toggleCardVideo(item, media, button) {
   const player = document.createElement('iframe');
   player.src = 'https://www.youtube-nocookie.com/embed/' + item.video
     + '?autoplay=1&mute=1&loop=1&playlist=' + item.video   // silent, and starts over when it ends
-    + '&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&iv_load_policy=3';
+    + '&controls=0&disablekb=1&fs=0&rel=0&playsinline=1&iv_load_policy=3'
+    + '&enablejsapi=1&origin=' + encodeURIComponent(location.origin); // lets us send it "play"
   player.title = item.name + ' video';
   player.allow = 'autoplay; encrypted-media';
   player.referrerPolicy = 'strict-origin-when-cross-origin';
+  // Nothing in the player can be tapped, so if it doesn't start by itself we tell it to:
+  // once it has loaded, send "mute" and "play" messages (and again a moment later, to be sure).
+  player.addEventListener('load', () => {
+    const tell = (command) => player.contentWindow && player.contentWindow.postMessage(
+      JSON.stringify({ event: 'command', func: command, args: [] }), 'https://www.youtube-nocookie.com');
+    const start = () => { tell('mute'); tell('playVideo'); };
+    start();
+    setTimeout(start, 1500);
+  });
   media.appendChild(player);
+  media.parentElement.classList.add('playing'); // the card widens to fit the whole video
   button.textContent = '■ Stop';
   playingCard = { media, button };
+  media.parentElement.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
 }
 
 // Draw the chips, the wish list message, and the cards that match the chip and search box.

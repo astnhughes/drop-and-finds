@@ -1,4 +1,4 @@
-// Drop & Finds — step 2: the Drop Picker wheel.
+// Drop & Finds — the Drop Picker wheel, plus "Pick" to mark the spot on the map.
 
 // Where the map comes from. This is a free community service, not Epic.
 const MAP_URL = 'https://fortnite-api.com/v1/map';
@@ -6,21 +6,25 @@ const MAP_URL = 'https://fortnite-api.com/v1/map';
 const statusLine = document.getElementById('status');
 
 // ---------- Switching screens ----------
-// When a bottom button is tapped, show its screen and hide the other one.
+// Show one screen, hide the other, and light up the matching bottom button.
 const tabs = document.querySelectorAll('.tab');
-tabs.forEach((tab) => {
-  tab.addEventListener('click', () => {
-    tabs.forEach((t) => t.classList.toggle('active', t === tab));
-    document.querySelectorAll('.screen').forEach((screen) => {
-      screen.hidden = screen.id !== tab.dataset.screen;
-    });
+
+function showScreen(screenId) {
+  tabs.forEach((tab) => tab.classList.toggle('active', tab.dataset.screen === screenId));
+  document.querySelectorAll('.screen').forEach((screen) => {
+    screen.hidden = screen.id !== screenId;
   });
+}
+
+tabs.forEach((tab) => {
+  tab.addEventListener('click', () => showScreen(tab.dataset.screen));
 });
 
 // ---------- The wheel ----------
 const wheel = document.getElementById('wheel');
 const resultLine = document.getElementById('result');
 const spinButton = document.getElementById('spin');
+const pickButton = document.getElementById('pick');
 const skipButton = document.getElementById('skip');
 const resetButton = document.getElementById('reset');
 const skippedNote = document.getElementById('skipped-note');
@@ -28,7 +32,8 @@ const skippedNote = document.getElementById('skipped-note');
 const SPIN_SECONDS = 4;      // must match the "transition" time in style.css
 const SLICE_COLORS = ['--slice-1', '--slice-2', '--slice-3', '--slice-4'];
 
-let allSpots = [];     // every location name from the live map
+// Each spot looks like { name: 'Loguetown', x: 1846, y: 55330 }
+let allSpots = [];     // every location from the live map
 let spotsOnWheel = []; // the ones still on the wheel (skipped ones are taken off)
 let chosenSpot = null; // the spot the wheel last landed on
 let wheelTurn = 0;     // how far the wheel has turned so far, in degrees
@@ -46,7 +51,7 @@ function drawWheel() {
   const sliceAngle = 360 / count;
   let drawing = '';
 
-  spotsOnWheel.forEach((name, i) => {
+  spotsOnWheel.forEach((spot, i) => {
     const [x1, y1] = pointOnWheel(i * sliceAngle, 240);
     const [x2, y2] = pointOnWheel((i + 1) * sliceAngle, 240);
     // Pick a color, making sure the last slice doesn't match the first one next to it.
@@ -63,7 +68,7 @@ function drawWheel() {
     // Write the name from the rim toward the middle.
     const middleOfSlice = (i + 0.5) * sliceAngle - 90;
     drawing += `<text x="478" y="250" text-anchor="end" dominant-baseline="central"
-                  transform="rotate(${middleOfSlice} 250 250)">${escapeText(name)}</text>`;
+                  transform="rotate(${middleOfSlice} 250 250)">${escapeText(spot.name)}</text>`;
   });
 
   drawing += '<circle cx="250" cy="250" r="26" fill="var(--background)"/>';
@@ -97,7 +102,7 @@ function spin() {
 
   setTimeout(() => {
     chosenSpot = spotsOnWheel[winner];
-    resultLine.textContent = chosenSpot;
+    resultLine.textContent = chosenSpot.name;
     spinning = false;
     updateButtons();
   }, SPIN_SECONDS * 1000 + 100);
@@ -106,7 +111,7 @@ function spin() {
 // Skip: take the chosen spot off the wheel and spin again.
 function skip() {
   if (spinning || !chosenSpot || spotsOnWheel.length <= 1) return;
-  spotsOnWheel = spotsOnWheel.filter((name) => name !== chosenSpot);
+  spotsOnWheel = spotsOnWheel.filter((spot) => spot !== chosenSpot);
   chosenSpot = null;
   drawWheel();
   spin();
@@ -125,9 +130,18 @@ function resetWheel() {
 // Turn buttons on and off so you can't tap the wrong thing mid-spin.
 function updateButtons() {
   const skippedCount = allSpots.length - spotsOnWheel.length;
+  const haveWinner = !spinning && chosenSpot !== null;
+
   spinButton.disabled = spinning || spotsOnWheel.length === 0;
   spinButton.textContent = chosenSpot ? 'Re-spin' : 'Spin';
-  skipButton.disabled = spinning || !chosenSpot || spotsOnWheel.length <= 1;
+  pickButton.disabled = !haveWinner;
+  skipButton.disabled = !haveWinner || spotsOnWheel.length <= 1;
+
+  // The bright button is the one you'll most likely want next:
+  // Spin before there's a winner, Pick once there is one.
+  spinButton.classList.toggle('primary', !haveWinner);
+  pickButton.classList.toggle('primary', haveWinner);
+
   resetButton.hidden = skippedCount === 0;
   resetButton.disabled = spinning;
   skippedNote.hidden = skippedCount === 0;
@@ -138,8 +152,51 @@ spinButton.addEventListener('click', spin);
 skipButton.addEventListener('click', skip);
 resetButton.addEventListener('click', resetWheel);
 
+// ---------- Pick: mark the chosen spot on the map ----------
+const dropMarker = document.getElementById('drop-marker');
+const dropMarkerLabel = document.getElementById('drop-marker-label');
+const dropBanner = document.getElementById('drop-banner');
+const dropName = document.getElementById('drop-name');
+
+// The service gives each spot in GAME coordinates (big numbers like 55330).
+// These numbers turn them into "how far across / down the picture", from 0 to 1.
+// They were measured against the map on 22 Nov 2026 (build 43.10).
+// A brand-new map may need them measured again.
+const MAP_SCALE = 3.225e-6;   // picture-widths per game unit
+const MAP_CENTER_X = 0.4772;  // where game x = 0 sits across the picture
+const MAP_CENTER_Y = 0.4968;  // where game y = 0 sits down the picture
+
+function spotToPicture(spot) {
+  return {
+    across: MAP_CENTER_X + spot.x * MAP_SCALE,
+    down: MAP_CENTER_Y + spot.y * MAP_SCALE,
+  };
+}
+
+function pick() {
+  if (spinning || !chosenSpot) return;
+  const place = spotToPicture(chosenSpot);
+
+  dropMarker.style.left = (place.across * 100) + '%';
+  dropMarker.style.top = (place.down * 100) + '%';
+  dropMarkerLabel.textContent = chosenSpot.name;
+  dropMarker.hidden = false;
+
+  dropName.textContent = chosenSpot.name;
+  dropBanner.hidden = false;
+
+  showScreen('screen-finds');
+}
+
+function clearDrop() {
+  dropMarker.hidden = true;
+  dropBanner.hidden = true;
+}
+
+pickButton.addEventListener('click', pick);
+document.getElementById('drop-clear').addEventListener('click', clearDrop);
+
 // ---------- Loading the map ----------
-// Ask the service for the current map, then fill the wheel and show the picture.
 // Three different things can go wrong, and each gets its own honest message:
 //   1. We can't reach the service at all (no internet).
 //   2. The service answers, but with a problem or with data we don't understand.
@@ -172,8 +229,12 @@ async function loadMap() {
 
   // 3. Use the data. If this part fails, it's a bug in the app, not the internet.
   try {
-    // Every location's name goes on the wheel.
-    allSpots = map.pois.map((spot) => spot.name);
+    // Every location goes on the wheel. We keep its name and where it is.
+    allSpots = map.pois.map((spot) => ({
+      name: spot.name,
+      x: spot.location.x,
+      y: spot.location.y,
+    }));
     resetWheel();
 
     // images.blank = the map picture with no names printed on it

@@ -165,6 +165,128 @@ main {
   color: var(--text-dim);
 }
 
+/* ---------- Pins on the map ---------- */
+/* Pin colors, one per category. Max: change these to recolor the pins. */
+:root {
+  --pin-egg: #b388ff;
+  --pin-vault: #ffc83d;
+  --pin-chest: #ff9f43;
+  --pin-npc: #3ec6ff;
+  --pin-other: #c7cedd;
+}
+
+/* Each pin is a round button. left/top are set by app.js; the margin centers it on the spot. */
+.pin {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  margin: -20px 0 0 -20px;
+  padding: 0;
+  border-radius: 50%;
+  border: 3px solid var(--background);
+  font-size: 20px;
+  line-height: 1;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+
+/* The see-through pin that shows where you tapped before you save */
+.pin.new {
+  background: var(--text);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* ---------- Pop-up cards ---------- */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start; /* near the top, so the keyboard doesn't cover it */
+  padding: calc(env(safe-area-inset-top) + 60px) 16px 16px;
+  background: rgba(0, 0, 0, 0.6);
+}
+.backdrop[hidden], .card[hidden] { display: none; }
+
+.card {
+  width: 100%;
+  max-width: 520px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 20px;
+  background: var(--panel);
+}
+
+.card h2 {
+  margin: 0;
+  font-size: 26px;
+  color: var(--accent);
+}
+
+.card-label {
+  margin: 4px 0 0;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  color: var(--text-dim);
+}
+
+.category-buttons {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.category-button {
+  min-height: 56px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border: 3px solid transparent;
+  border-radius: 14px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  text-align: left;
+}
+.category-button .icon { font-size: 22px; }
+.category-button.selected { border-color: var(--accent); }
+
+.note-input {
+  min-height: 56px;
+  padding: 0 14px;
+  border: 2px solid var(--text-dim);
+  border-radius: 14px;
+  background: var(--background);
+  color: var(--text);
+  font: inherit;
+  font-size: 18px; /* 16px or bigger stops the iPad zooming in when you type */
+  -webkit-user-select: text; /* typing needs this turned back on */
+  user-select: text;
+}
+
+.view-note {
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.4;
+  -webkit-user-select: text;
+  user-select: text;
+}
+.view-note.empty { color: var(--text-dim); }
+
+.card-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+.card-actions .big-button { flex: 1; }
+
 /* ---------- Drop Picker ---------- */
 /* Wheel colors. Max: change these four to recolor the slices. */
 :root {

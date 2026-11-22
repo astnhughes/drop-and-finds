@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=5">
 </head>
 <body>
   <header class="top-bar">
@@ -60,6 +60,8 @@
         <!-- The map picture, with markers drawn on top of it -->
         <div class="map-wrap">
           <img id="map-blank" class="map" alt="Map without names">
+          <!-- Max's pins get added here by app.js -->
+          <div id="pins"></div>
           <div id="drop-marker" class="drop-marker" hidden>
             <div class="drop-ring"></div>
             <div class="drop-dot"></div>
@@ -67,9 +69,35 @@
           </div>
         </div>
       </div>
-      <p class="hint">Tapping the map to drop pins comes soon.</p>
+      <p id="finds-hint" class="hint">Tap the map to drop a pin.</p>
     </section>
   </main>
+
+  <!-- Pop-up cards. The dark backdrop covers the app while one is open. -->
+  <div id="backdrop" class="backdrop" hidden>
+    <!-- Card 1: making a new pin -->
+    <div id="pin-form" class="card" hidden>
+      <h2>New find</h2>
+      <p class="card-label">What is it?</p>
+      <div id="category-buttons" class="category-buttons"></div>
+      <p class="card-label">Note (optional)</p>
+      <input id="note" class="note-input" type="text" maxlength="80"
+             placeholder="Like: behind the waterfall" autocomplete="off">
+      <div class="card-actions">
+        <button id="pin-cancel" class="big-button">Cancel</button>
+        <button id="pin-save" class="big-button primary" disabled>Save pin</button>
+      </div>
+    </div>
+
+    <!-- Card 2: looking at a pin you already made -->
+    <div id="pin-view" class="card" hidden>
+      <h2 id="view-title"></h2>
+      <p id="view-note" class="view-note"></p>
+      <div class="card-actions">
+        <button id="view-close" class="big-button primary">Close</button>
+      </div>
+    </div>
+  </div>
 
   <!-- The two big buttons at the bottom that switch screens -->
   <nav class="tabs">
@@ -77,6 +105,6 @@
     <button class="tab" data-screen="screen-finds">My Finds</button>
   </nav>
 
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

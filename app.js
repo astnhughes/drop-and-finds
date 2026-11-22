@@ -1,4 +1,4 @@
-// Drop & Finds — the Drop Picker wheel, plus "Pick" to mark the spot on the map.
+// Drop & Finds — the Drop Picker wheel, "Pick" to mark the spot, and My Finds pins.
 
 // Where the map comes from. This is a free community service, not Epic.
 const MAP_URL = 'https://fortnite-api.com/v1/map';
@@ -195,6 +195,170 @@ function clearDrop() {
 
 pickButton.addEventListener('click', pick);
 document.getElementById('drop-clear').addEventListener('click', clearDrop);
+
+// ---------- My Finds: pins ----------
+// The kinds of things Max can pin. The icon shows on the pin, the color fills it.
+const CATEGORIES = [
+  { id: 'egg',   name: 'Easter Egg', icon: '🥚', color: '--pin-egg' },
+  { id: 'vault', name: 'Vault',      icon: '🔒', color: '--pin-vault' },
+  { id: 'chest', name: 'Chest',      icon: '🧰', color: '--pin-chest' },
+  { id: 'npc',   name: 'NPC',        icon: '🧍', color: '--pin-npc' },
+  { id: 'other', name: 'Other',      icon: '⭐', color: '--pin-other' },
+];
+
+// Pins are saved on this iPad under this name. Nothing is sent anywhere.
+const PINS_KEY = 'drop-and-finds-pins';
+
+const mapWrap = document.querySelector('.map-wrap');
+const pinsLayer = document.getElementById('pins');
+const findsHint = document.getElementById('finds-hint');
+const backdrop = document.getElementById('backdrop');
+const pinForm = document.getElementById('pin-form');
+const pinView = document.getElementById('pin-view');
+const categoryButtons = document.getElementById('category-buttons');
+const noteInput = document.getElementById('note');
+const saveButton = document.getElementById('pin-save');
+
+// Each pin looks like:
+// { id: 'p1732300000000', across: 0.48, down: 0.67, category: 'vault', note: 'behind the shop' }
+// "across" and "down" are how far across/down the picture it is, from 0 to 1,
+// so the pin stays in the right place whatever size the map is drawn.
+let pins = readSavedPins();
+let newPin = null; // the pin being made right now, before Save is tapped
+
+function readSavedPins() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(PINS_KEY));
+    return Array.isArray(saved) ? saved : [];
+  } catch (error) {
+    return [];
+  }
+}
+
+function savePins() {
+  try {
+    localStorage.setItem(PINS_KEY, JSON.stringify(pins));
+  } catch (error) {
+    showProblem('Could not save pins on this iPad. Storage may be full or turned off.', error);
+  }
+}
+
+function categoryFor(id) {
+  return CATEGORIES.find((category) => category.id === id) || CATEGORIES[CATEGORIES.length - 1];
+}
+
+// Draw every saved pin on the map (plus the see-through one being made, if any).
+function drawPins() {
+  pinsLayer.innerHTML = '';
+
+  pins.forEach((pin) => {
+    const category = categoryFor(pin.category);
+    const button = document.createElement('button');
+    button.className = 'pin';
+    button.textContent = category.icon;
+    button.style.background = `var(${category.color})`;
+    button.style.left = (pin.across * 100) + '%';
+    button.style.top = (pin.down * 100) + '%';
+    button.setAttribute('aria-label', category.name + (pin.note ? ': ' + pin.note : ''));
+    button.addEventListener('click', (event) => {
+      event.stopPropagation(); // don't also count this as a tap on the map
+      openPinView(pin);
+    });
+    pinsLayer.appendChild(button);
+  });
+
+  if (newPin) {
+    const ghost = document.createElement('div');
+    ghost.className = 'pin new';
+    ghost.style.left = (newPin.across * 100) + '%';
+    ghost.style.top = (newPin.down * 100) + '%';
+    pinsLayer.appendChild(ghost);
+  }
+
+  findsHint.textContent = pins.length === 0
+    ? 'Tap the map to drop a pin.'
+    : (pins.length === 1 ? '1 pin' : pins.length + ' pins') + ' · Tap the map to add another.';
+}
+
+// Tapping the map: work out where on the picture the tap was, then open the "New find" card.
+mapWrap.addEventListener('click', (event) => {
+  const box = mapWrap.getBoundingClientRect();
+  newPin = {
+    across: (event.clientX - box.left) / box.width,
+    down: (event.clientY - box.top) / box.height,
+    category: null,
+  };
+  drawPins();
+  openPinForm();
+});
+
+// Build the five category buttons once.
+CATEGORIES.forEach((category) => {
+  const button = document.createElement('button');
+  button.className = 'category-button';
+  button.dataset.category = category.id;
+  button.innerHTML = `<span class="icon">${category.icon}</span>${category.name}`;
+  button.addEventListener('click', () => {
+    newPin.category = category.id;
+    categoryButtons.querySelectorAll('.category-button').forEach((other) => {
+      other.classList.toggle('selected', other === button);
+    });
+    saveButton.disabled = false;
+  });
+  categoryButtons.appendChild(button);
+});
+
+function openPinForm() {
+  noteInput.value = '';
+  saveButton.disabled = true;
+  categoryButtons.querySelectorAll('.category-button').forEach((b) => b.classList.remove('selected'));
+  pinView.hidden = true;
+  pinForm.hidden = false;
+  backdrop.hidden = false;
+}
+
+function openPinView(pin) {
+  const category = categoryFor(pin.category);
+  document.getElementById('view-title').textContent = category.icon + ' ' + category.name;
+  const noteLine = document.getElementById('view-note');
+  noteLine.textContent = pin.note || 'No note';
+  noteLine.classList.toggle('empty', !pin.note);
+  pinForm.hidden = true;
+  pinView.hidden = false;
+  backdrop.hidden = false;
+}
+
+function closeCards() {
+  backdrop.hidden = true;
+  pinForm.hidden = true;
+  pinView.hidden = true;
+  noteInput.blur(); // puts the keyboard away
+  newPin = null;
+  drawPins();
+}
+
+function saveNewPin() {
+  if (!newPin || !newPin.category) return;
+  pins.push({
+    id: 'p' + Date.now(),
+    across: newPin.across,
+    down: newPin.down,
+    category: newPin.category,
+    note: noteInput.value.trim(),
+  });
+  savePins();
+  closeCards();
+}
+
+saveButton.addEventListener('click', saveNewPin);
+document.getElementById('pin-cancel').addEventListener('click', closeCards);
+document.getElementById('view-close').addEventListener('click', closeCards);
+// Tapping the dark area outside a card closes it too.
+backdrop.addEventListener('click', (event) => {
+  if (event.target === backdrop) closeCards();
+});
+
+drawPins();
 
 // ---------- Loading the map ----------
 // Three different things can go wrong, and each gets its own honest message:

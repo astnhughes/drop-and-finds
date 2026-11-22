@@ -571,9 +571,7 @@ function openPinForm(pin = null) {
   deleteButton.hidden = lookOnly || !pin;
   document.getElementById('pin-cancel').textContent = lookOnly ? 'Close' : 'Cancel';
 
-  seasonCard.hidden = true;
-  pinForm.hidden = false;
-  backdrop.hidden = false;
+  showCard(pinForm);
 }
 
 function closeCards() {
@@ -737,9 +735,7 @@ function openSeasonCard() {
     seasonList.appendChild(button);
   });
 
-  pinForm.hidden = true;
-  seasonCard.hidden = false;
-  backdrop.hidden = false;
+  showCard(seasonCard);
 }
 
 seasonButton.addEventListener('click', openSeasonCard);
@@ -772,6 +768,148 @@ function updateSeason(version) {
   data.seasons[data.currentSeason].build = version.full;
   return newSeasonStarted;
 }
+
+// ---------- Backup: Export and Import ----------
+const backupCard = document.getElementById('backup-card');
+const backupResult = document.getElementById('backup-result');
+const importFile = document.getElementById('import-file');
+
+// Show one pop-up card and hide the others.
+function showCard(card) {
+  document.querySelectorAll('#backdrop .card').forEach((other) => {
+    other.hidden = other !== card;
+  });
+  backdrop.hidden = false;
+}
+
+function sayBackupResult(message, isProblem = false) {
+  backupResult.textContent = message;
+  backupResult.classList.toggle('problem', isProblem);
+  backupResult.hidden = false;
+}
+
+function countAllPins() {
+  return Object.values(data.seasons).reduce((total, season) => total + season.pins.length, 0);
+}
+
+// Export: turn everything saved into a file and hand it to the iPad to keep.
+async function exportBackup() {
+  const today = new Date().toISOString().slice(0, 10); // like 2026-11-22
+  const fileName = 'drop-and-finds-backup-' + today + '.json';
+  const contents = JSON.stringify({ app: 'drop-and-finds', exported: new Date().toISOString(), data }, null, 2);
+  const pinCount = countAllPins();
+  const summary = pinCount === 1 ? '1 pin' : pinCount + ' pins';
+
+  // On the iPad, the Share sheet lets you pick "Save to Files".
+  const file = new File([contents], fileName, { type: 'application/json' });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try {
+      await navigator.share({ files: [file], title: 'Drop & Finds backup' });
+      sayBackupResult('Backup with ' + summary + ' handed to the iPad. Choose "Save to Files" to keep it.');
+    } catch (error) {
+      if (error.name !== 'AbortError') sayBackupResult('Could not share the backup: ' + error.message, true);
+    }
+    return;
+  }
+
+  // On a computer, download it like any other file.
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(new Blob([contents], { type: 'application/json' }));
+  link.download = fileName;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+  sayBackupResult('Backup with ' + summary + ' downloaded as ' + fileName + '.');
+}
+
+// A pin from a file is only trusted if it has a real position and category.
+// We copy just the parts we know about, so a strange file can't sneak anything in.
+function cleanPin(pin) {
+  if (!pin || typeof pin.across !== 'number' || typeof pin.down !== 'number') return null;
+  if (!CATEGORIES.some((category) => category.id === pin.category)) return null;
+  return {
+    id: typeof pin.id === 'string' ? pin.id : 'p' + Date.now() + Math.random().toString(36).slice(2, 7),
+    across: clamp(pin.across, 0, 1),
+    down: clamp(pin.down, 0, 1),
+    category: pin.category,
+    status: pin.status === 'rumor' ? 'rumor' : 'confirmed',
+    note: typeof pin.note === 'string' ? pin.note.slice(0, 80) : '',
+  };
+}
+
+function cleanSpots(spots) {
+  if (!Array.isArray(spots)) return [];
+  return spots
+    .filter((spot) => spot && typeof spot.name === 'string' && typeof spot.x === 'number' && typeof spot.y === 'number')
+    .map((spot) => ({ name: spot.name, x: spot.x, y: spot.y }));
+}
+
+// Import: read a backup file and ADD its pins to what's here. Nothing is ever deleted.
+// A pin that's already here (same id) is skipped, so importing twice is harmless.
+function importBackup(text) {
+  let backup;
+  try {
+    backup = JSON.parse(text);
+  } catch (error) {
+    sayBackupResult('That file isn\'t a Drop & Finds backup.', true);
+    return;
+  }
+  const seasons = backup && backup.data && backup.data.seasons;
+  if (!backup || backup.app !== 'drop-and-finds' || !seasons || typeof seasons !== 'object') {
+    sayBackupResult('That file isn\'t a Drop & Finds backup.', true);
+    return;
+  }
+
+  let added = 0;
+  let alreadyHere = 0;
+
+  Object.keys(seasons).forEach((key) => {
+    const theirs = seasons[key];
+    if (!theirs || !Array.isArray(theirs.pins)) return;
+
+    // A backup made before the season number was known goes into today's season.
+    let target = /^\d+$/.test(key) ? key : data.currentSeason;
+    if (!data.seasons[target]) {
+      data.seasons[target] = emptySeason();
+      data.seasons[target].build = typeof theirs.build === 'string' ? theirs.build : null;
+      data.seasons[target].spots = cleanSpots(theirs.spots);
+    }
+    const mine = data.seasons[target].pins;
+
+    theirs.pins.forEach((pin) => {
+      const clean = cleanPin(pin);
+      if (!clean) return;
+      if (mine.some((existing) => existing.id === clean.id)) {
+        alreadyHere += 1;
+      } else {
+        mine.push(clean);
+        added += 1;
+      }
+    });
+  });
+
+  saveData();
+  pins = data.seasons[viewSeason].pins;
+  drawPins();
+
+  const addedText = added === 1 ? '1 pin' : added + ' pins';
+  sayBackupResult(
+    'Brought back ' + addedText + '.'
+    + (alreadyHere === 1 ? ' 1 was already here.' : alreadyHere ? ' ' + alreadyHere + ' were already here.' : '')
+  );
+}
+
+document.getElementById('backup-button').addEventListener('click', () => {
+  backupResult.hidden = true;
+  showCard(backupCard);
+});
+document.getElementById('backup-close').addEventListener('click', closeCards);
+document.getElementById('export-button').addEventListener('click', exportBackup);
+document.getElementById('import-button').addEventListener('click', () => importFile.click());
+importFile.addEventListener('change', async () => {
+  const file = importFile.files[0];
+  importFile.value = ''; // so picking the same file again still works
+  if (file) importBackup(await file.text());
+});
 
 // ---------- Loading the map ----------
 const VERSION_URL = 'https://fortnite-api.com/v2/aes'; // tells us the game's version number

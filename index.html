@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
 </head>
 <body>
   <header class="top-bar">
@@ -60,6 +60,8 @@
       <div class="filter-row">
         <!-- Opens the list of seasons (today's map plus old ones) -->
         <button id="season-button" class="chip season-chip">Season ▾</button>
+        <!-- Opens the Backup card (Export and Import) -->
+        <button id="backup-button" class="chip season-chip">Backup</button>
         <div id="filter-bar" class="filter-bar"></div>
       </div>
 
@@ -126,6 +128,21 @@
         <button id="season-close" class="big-button">Close</button>
       </div>
     </div>
+
+    <!-- The Backup card -->
+    <div id="backup-card" class="card" hidden>
+      <h2>Backup</h2>
+      <p class="card-text">Your pins live only on this iPad. <strong>Export</strong> saves a copy as a file.
+        <strong>Import</strong> brings pins back from a file. Import only adds pins; it never deletes any.</p>
+      <button id="export-button" class="big-button primary">Export backup</button>
+      <button id="import-button" class="big-button">Import backup</button>
+      <!-- The hidden file chooser that Import opens -->
+      <input id="import-file" type="file" accept=".json,application/json" hidden>
+      <p id="backup-result" class="card-text result-text" hidden></p>
+      <div class="card-actions">
+        <button id="backup-close" class="big-button">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- The two big buttons at the bottom that switch screens -->
@@ -134,6 +151,6 @@
     <button class="tab" data-screen="screen-finds">My Finds</button>
   </nav>
 
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

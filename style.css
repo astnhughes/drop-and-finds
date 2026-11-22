@@ -564,3 +564,20 @@ main {
   background: var(--accent);
   color: var(--accent-text);
 }
+
+/* ---------- Backup card ---------- */
+.card-text {
+  margin: 0;
+  font-size: 17px;
+  line-height: 1.45;
+  color: var(--text);
+}
+.card-text[hidden] { display: none; }
+.result-text {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--background);
+  color: var(--accent);
+  font-weight: 700;
+}
+.result-text.problem { color: #ff8a7a; }

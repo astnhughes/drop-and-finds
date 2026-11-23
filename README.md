@@ -61,6 +61,25 @@ To refresh it, ask Claude to "refresh the guide". Claude re-reads the articles, 
 
 `guide.json` also holds `seasonEnds`, the date the season finishes. The News tab turns it into "ends in 19 days". The date gets refreshed along with the guide. If it's missing, past, or for a different season, the countdown hides itself.
 
+## The home server (Mac mini)
+
+The app can also be opened from the Mac mini on the home Wi-Fi: `http://Austins-Mac-mini.local:8642`. This is the same app, but its files come from the Mac instead of GitHub. That lets the Mac add private data later that must never be published.
+
+| File | What it does |
+|---|---|
+| `server/serve.py` | The server. It hands out the app's files, read-only, and keeps each season's map picture |
+| `server/update-home.sh` | Copies the newest app into the server's folder. Run it after any change |
+
+The server's own folder is `~/Library/Application Support/DropAndFinds`. A startup item (`~/Library/LaunchAgents/com.dropandfinds.server.plist`) starts it at login and restarts it if it stops. Its log is `~/Library/Logs/DropAndFinds/server.log`.
+
+Things to know:
+
+- The Mac has to be awake and logged in, or the app won't open.
+- Pins saved at the GitHub address don't appear here. Use Export there and Import here, once.
+- There is no offline copy at this address. Safari only allows that on secure (https) addresses.
+
+To switch it off for good: `launchctl bootout gui/$(id -u)/com.dropandfinds.server`, then delete the startup item.
+
 ## Changing the look
 
 All the colors are at the top of sections in `style.css` (look for `:root`). Pin categories and their icons are the `CATEGORIES` list in `app.js`.

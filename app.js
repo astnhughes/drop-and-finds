@@ -981,6 +981,9 @@ function pictureName(key) {
 }
 
 async function keepSeasonPicture(key, bigUrl, smallUrl) {
+  // Safari only gives a page this storage shelf on a secure (https) address.
+  // On the home server there's no shelf, and the server keeps the pictures instead.
+  if (!('caches' in window)) return;
   try {
     let picture = await fetch(bigUrl);
     if (!picture.ok) picture = await fetch(smallUrl);
@@ -1000,6 +1003,15 @@ mapPicture.addEventListener('error', () => {
 });
 
 async function keptSeasonPicture(key) {
+  // No shelf (home server): ask the server whether it kept this season's picture.
+  if (!('caches' in window)) {
+    try {
+      const check = await fetch(pictureName(key), { method: 'HEAD' });
+      return check.ok ? pictureName(key) : null;
+    } catch (error) {
+      return null;
+    }
+  }
   try {
     const shelf = await caches.open(SEASON_PICTURES);
     const picture = await shelf.match(pictureName(key));
@@ -1630,9 +1642,28 @@ function importBackup(text) {
     });
   });
 
+  // Guide tips already marked "Found it" (just a list of tip names).
+  const theirFound = Array.isArray(backup.data.guideFound) ? backup.data.guideFound : [];
+  theirFound.forEach((id) => {
+    if (typeof id === 'string' && id.length <= 80 && !foundTips().includes(id)) foundTips().push(id);
+  });
+
+  // The daily stats notes behind "this week: +3 wins". One note per day; ours wins a tie.
+  if (!Array.isArray(data.statSnapshots)) data.statSnapshots = [];
+  const theirSnaps = Array.isArray(backup.data.statSnapshots) ? backup.data.statSnapshots : [];
+  theirSnaps.forEach((snap) => {
+    if (!snap || !/^\d{4}-\d{2}-\d{2}$/.test(snap.day)) return;
+    if (![snap.wins, snap.kills, snap.matches].every((n) => Number.isFinite(n))) return;
+    if (data.statSnapshots.some((mine) => mine.day === snap.day)) return;
+    data.statSnapshots.push({ day: snap.day, wins: snap.wins, kills: snap.kills, matches: snap.matches });
+  });
+  data.statSnapshots.sort((a, b) => (a.day < b.day ? -1 : 1));
+  data.statSnapshots = data.statSnapshots.slice(-120);
+
   saveData();
   pins = data.seasons[viewSeason].pins;
   drawPins();
+  drawGuideLayer();
 
   const addedText = added === 1 ? '1 pin' : added + ' pins';
   sayBackupResult(

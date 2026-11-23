@@ -1093,6 +1093,7 @@ function updateSeason(version) {
   }
 
   data.seasons[data.currentSeason].build = version.full;
+  showSeasonCountdown(); // the countdown only shows for the season we're really in
   return newSeasonStarted;
 }
 
@@ -1284,9 +1285,46 @@ async function loadGuide() {
     if (!Array.isArray(loaded.tips)) throw new Error('no tips');
     guide = loaded;
     drawGuideLayer();
+    showSeasonCountdown();
   } catch (error) {
     console.error(error); // the app works fine without the guide
   }
+}
+
+// ---------- Season countdown (News tab) ----------
+// guide.json also says when this season ends. We turn that date into
+// "ends in 20 days". If the date is missing, already past, or written for a
+// different season than the one the game is in, we show nothing at all:
+// no countdown is better than a wrong one.
+const DAY = 24 * 60 * 60 * 1000; // one day, in milliseconds
+const HOUR = 60 * 60 * 1000;
+
+function showSeasonCountdown() {
+  const card = document.getElementById('season-card-news');
+  card.hidden = true;
+  if (!guide || guide.season !== data.currentSeason || !guide.seasonEnds) return;
+
+  const end = new Date(guide.seasonEnds);
+  const left = end.getTime() - Date.now();
+  if (Number.isNaN(left) || left <= 0) return;
+
+  let amount;
+  if (left >= DAY) {
+    const days = Math.floor(left / DAY);
+    amount = days + (days === 1 ? ' day' : ' days');
+  } else {
+    const hours = Math.max(1, Math.floor(left / HOUR));
+    amount = hours + (hours === 1 ? ' hour' : ' hours');
+  }
+
+  // The date is shown in this iPad's own time zone.
+  const when = end.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+    + ' at ' + end.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+  const name = guide.seasonName || seasonName(guide.season);
+  document.getElementById('season-countdown').textContent = name + ' ends in ' + amount;
+  document.getElementById('season-countdown-date').textContent =
+    'It ends ' + when + '. Finish the Battle Pass before then.';
+  card.hidden = false;
 }
 
 // Put a 📖 marker above each place on the map that has tips.

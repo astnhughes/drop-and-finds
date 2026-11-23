@@ -620,6 +620,16 @@ main {
 .server-dot.warn { background: #ffc83d; }
 .server-dot.bad  { background: #ff6b5e; }
 
+.server-card[hidden] { display: none; }
+
+.countdown-icon {
+  flex: none;
+  width: 22px;
+  font-size: 22px;
+  line-height: 1.2;
+  text-align: center;
+}
+
 .server-headline {
   margin: 0;
   font-size: 21px;

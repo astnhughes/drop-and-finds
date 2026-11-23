@@ -3,6 +3,8 @@
   "season": "43",
   "seasonName": "Treasure Hunters",
   "checked": "2026-11-23",
+  "seasonBegan": "2026-10-25T14:00:00Z",
+  "seasonEnds": "2026-12-12T14:00:00Z",
   "tips": [
     { "id": "loguetown-luffy", "place": "Loguetown", "kind": "NPC", "name": "Luffy",
       "text": "Luffy is somewhere in Loguetown. Talk to him for a free Rift back into the sky.",

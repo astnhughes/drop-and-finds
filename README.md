@@ -57,6 +57,10 @@ After Pick, **Loot route** takes the pins near the drop spot and draws the short
 
 To refresh it, ask Claude to "refresh the guide". Claude re-reads the articles, rewrites `guide.json` (tips, `checked` date, and `season`), and publishes. The guide hides itself when the season number in the file no longer matches the game.
 
+### Season countdown
+
+`guide.json` also holds `seasonEnds`, the date the season finishes. The News tab turns it into "ends in 19 days". The date gets refreshed along with the guide. If it's missing, past, or for a different season, the countdown hides itself.
+
 ## Changing the look
 
 All the colors are at the top of sections in `style.css` (look for `:root`). Pin categories and their icons are the `CATEGORIES` list in `app.js`.

@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=25">
+  <link rel="stylesheet" href="style.css?v=26">
 </head>
 <body>
   <header class="top-bar">
@@ -146,6 +146,15 @@
         <div>
           <p id="server-headline" class="server-headline">Checking the servers…</p>
           <div id="server-details" class="server-details"></div>
+        </div>
+      </div>
+
+      <!-- How long until the season ends. Hidden unless guide.json has the date. -->
+      <div id="season-card-news" class="server-card" hidden>
+        <span class="countdown-icon">⏳</span>
+        <div>
+          <p id="season-countdown" class="server-headline"></p>
+          <div class="server-details"><p id="season-countdown-date"></p></div>
         </div>
       </div>
 
@@ -324,6 +333,6 @@
     <button class="tab" data-screen="screen-shop">Shop</button>
   </nav>
 
-  <script src="app.js?v=25"></script>
+  <script src="app.js?v=26"></script>
 </body>
 </html>

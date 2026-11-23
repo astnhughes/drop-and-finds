@@ -47,6 +47,12 @@ The app reads the game's version number (like 43.10). When the big number goes u
 
 Every time the app opens with internet, `sw.js` fetches the newest version and saves a copy. With no internet, it uses the saved copy.
 
+### Guide (web tips)
+
+`guide.json` holds tips gathered from gaming articles: which NPCs, bosses and vaults are at which named place. Places that match a location from the map service get a 📖 marker on the map. A tip only says which place, so when the real thing is found in the game, "Found it" turns it into an exact pin.
+
+To refresh it, ask Claude to "refresh the guide". Claude re-reads the articles, rewrites `guide.json` (tips, `checked` date, and `season`), and publishes. The guide hides itself when the season number in the file no longer matches the game.
+
 ## Changing the look
 
 All the colors are at the top of sections in `style.css` (look for `:root`). Pin categories and their icons are the `CATEGORIES` list in `app.js`.

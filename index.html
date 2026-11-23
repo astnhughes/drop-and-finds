@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=23">
+  <link rel="stylesheet" href="style.css?v=24">
 </head>
 <body>
   <header class="top-bar">
@@ -83,6 +83,8 @@
         <button id="season-button" class="chip season-chip">Season ▾</button>
         <!-- Opens the Backup card (Export and Import) -->
         <button id="backup-button" class="chip season-chip">Backup</button>
+        <!-- Opens the list of web tips for every place -->
+        <button id="guide-button" class="chip season-chip">📖 Guide</button>
         <div id="filter-bar" class="filter-bar"></div>
       </div>
 
@@ -90,6 +92,12 @@
       <div id="archive-banner" class="drop-banner" hidden>
         <span>Looking at <strong id="archive-name"></strong> (old map)</span>
         <button id="archive-back" class="small-button">Back to today's map</button>
+      </div>
+
+      <!-- Shows after tapping "Found it" on a tip: the next tap on the map pins it -->
+      <div id="tip-banner" class="drop-banner" hidden>
+        <span>Tap the exact spot where you found <strong id="tip-name"></strong></span>
+        <button id="tip-cancel" class="small-button">Cancel</button>
       </div>
 
       <!-- Shows once when a new season starts -->
@@ -105,6 +113,8 @@
             <!-- The bus route gets drawn here by app.js -->
             <svg id="bus-layer" class="bus-layer" viewBox="0 0 1000 1000"></svg>
             <div id="pins"></div>
+            <!-- The little 📖 markers for places that have web tips -->
+            <div id="guide-layer"></div>
             <div id="drop-marker" class="drop-marker" hidden>
               <div class="drop-ring"></div>
               <div class="drop-dot"></div>
@@ -275,6 +285,27 @@
         <button id="career-save" class="big-button primary">Save</button>
       </div>
     </div>
+
+    <!-- The Guide card: every place that has web tips -->
+    <div id="guide-card" class="card" hidden>
+      <h2>Guide</h2>
+      <p id="guide-summary" class="card-text"></p>
+      <div id="guide-places" class="season-list"></div>
+      <div class="card-actions">
+        <button id="guide-toggle" class="big-button">Hide on map</button>
+        <button id="guide-close" class="big-button primary">Close</button>
+      </div>
+    </div>
+
+    <!-- The What's here card: the tips for one place -->
+    <div id="place-card" class="card" hidden>
+      <h2 id="place-title"></h2>
+      <div id="place-tips" class="tips-list"></div>
+      <p id="place-fine" class="fine-print"></p>
+      <div class="card-actions">
+        <button id="place-close" class="big-button primary">Close</button>
+      </div>
+    </div>
   </div>
 
   <!-- The two big buttons at the bottom that switch screens -->
@@ -285,6 +316,6 @@
     <button class="tab" data-screen="screen-shop">Shop</button>
   </nav>
 
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=24"></script>
 </body>
 </html>

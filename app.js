@@ -490,7 +490,7 @@ function fingerLifted(event, wasCancelled) {
 
   // A clean tap on the map (not a slide, not on a pin): drop a new pin there.
   const tappedMap = fingers.size === 0 && !fingerMoved && !wasCancelled
-    && event.target.closest && !event.target.closest('.pin') // (a finger lifted off-screen has no element)
+    && event.target.closest && !event.target.closest('.pin, .guide-marker') // (a finger lifted off-screen has no element)
     && viewSeason === data.currentSeason; // old seasons are look-only
   if (tappedMap) {
     newPin = {
@@ -500,6 +500,7 @@ function fingerLifted(event, wasCancelled) {
     };
     drawPins();
     openPinForm();
+    fillFormFromTip(); // if this tap is pinning a web tip, fill in its details
   }
   beginGesture();
 }
@@ -653,6 +654,7 @@ function endBusMode(keep) {
   if (keep) {
     resetWheel();
     showBusNote();
+    drawGuideLayer();
     showScreen('screen-drop');
   }
 }
@@ -748,11 +750,13 @@ function openPinForm(pin = null) {
 
 function closeCards() {
   backdrop.hidden = true;
+  stopPinningTip(); // closing a card without saving cancels "Found it"
   closeVideo();
   noteInput.blur(); // puts the keyboard away
   newPin = null;
   editingPin = null;
   drawPins();
+  drawGuideLayer();
 }
 
 function savePin() {
@@ -765,6 +769,7 @@ function savePin() {
     editingPin.status = formStatus;
     editingPin.note = note;
   } else if (newPin) {
+    if (tipBeingPinned) markTipFound(tipBeingPinned);
     pins.push({
       id: 'p' + Date.now() + Math.random().toString(36).slice(2, 6),
       across: newPin.across,
@@ -879,6 +884,7 @@ async function showSeason(key) {
   resetView();
   drawPins();
   drawBusLayer();
+  drawGuideLayer();
 
   const picture = (isToday && todaysPictureUrl) ? todaysPictureUrl : await keptSeasonPicture(key);
   if (viewSeason !== key) return; // a different season was chosen while we waited
@@ -1096,6 +1102,206 @@ document.getElementById('elims-down').addEventListener('click', () => changeElim
 document.getElementById('elims-up').addEventListener('click', () => changeElims(1));
 document.getElementById('log-cancel').addEventListener('click', closeCards);
 document.getElementById('stats-close').addEventListener('click', closeCards);
+
+// ---------- Guide: web tips for each place ("What's here") ----------
+// guide.json is a small file in this project holding tips gathered from gaming
+// articles: which NPCs, bosses and vaults are at which named place. Places that
+// match a location from the map service get a 📖 marker on the map.
+// A tip says WHICH PLACE, not the exact spot. When Max finds the real thing in the
+// game he taps "Found it", then taps the exact spot, and it becomes one of his pins.
+const guideLayer = document.getElementById('guide-layer');
+const guideCard = document.getElementById('guide-card');
+const placeCard = document.getElementById('place-card');
+const tipBanner = document.getElementById('tip-banner');
+const TIP_CATEGORY = { NPC: 'npc', Vault: 'vault', Chest: 'chest' }; // anything else becomes "Other"
+
+let guide = null;            // the contents of guide.json, once loaded
+let guideOnMap = true;       // are the 📖 markers showing?
+let tipBeingPinned = null;   // the tip waiting for "tap the exact spot"
+
+function foundTips() {
+  if (!Array.isArray(data.guideFound)) data.guideFound = [];
+  return data.guideFound;
+}
+
+// The guide only applies to the season it was written for, and only on today's map.
+function guideTips() {
+  if (!guide || guide.season !== data.currentSeason) return [];
+  return guide.tips;
+}
+
+function tipsAt(place) {
+  return guideTips().filter((tip) => tip.place === place);
+}
+
+async function loadGuide() {
+  try {
+    const response = await fetch('guide.json');
+    if (!response.ok) throw new Error('status ' + response.status);
+    const loaded = await response.json();
+    if (!Array.isArray(loaded.tips)) throw new Error('no tips');
+    guide = loaded;
+    drawGuideLayer();
+  } catch (error) {
+    console.error(error); // the app works fine without the guide
+  }
+}
+
+// Put a 📖 marker above each place on the map that has tips.
+function drawGuideLayer() {
+  guideLayer.innerHTML = '';
+  if (!guideOnMap || viewSeason !== data.currentSeason) return;
+
+  allSpots.forEach((spot) => {
+    const tips = tipsAt(spot.name);
+    if (tips.length === 0) return;
+    const left = tips.filter((tip) => !foundTips().includes(tip.id)).length;
+    const place = spotToPicture(spot);
+    const marker = document.createElement('button');
+    marker.className = left === 0 ? 'guide-marker done' : 'guide-marker';
+    marker.textContent = left === 0 ? '📖 ✓' : '📖 ' + left;
+    marker.style.left = (place.across * 100) + '%';
+    marker.style.top = (place.down * 100) + '%';
+    marker.setAttribute('aria-label', 'Tips for ' + spot.name);
+    marker.addEventListener('click', () => {
+      if (fingerMoved || busDrawing) return; // sliding the map or drawing the bus route
+      openPlaceCard(spot.name);
+    });
+    guideLayer.appendChild(marker);
+  });
+}
+
+// The What's here card for one place.
+function openPlaceCard(place) {
+  const tips = tipsAt(place);
+  const onMap = allSpots.some((spot) => spot.name === place);
+  document.getElementById('place-title').textContent = place === 'Anywhere' ? 'Anywhere on the island' : 'What\'s at ' + place;
+  const list = document.getElementById('place-tips');
+  list.innerHTML = '';
+
+  tips.forEach((tip) => {
+    const box = document.createElement('div');
+    box.className = 'tip';
+
+    const head = document.createElement('p');
+    head.className = 'tip-head';
+    const kind = document.createElement('span');
+    kind.className = 'tip-kind';
+    kind.textContent = tip.kind;
+    head.append(kind, tip.name);
+
+    const text = document.createElement('p');
+    text.className = 'tip-text';
+    text.textContent = tip.text;
+
+    const source = document.createElement('p');
+    source.className = 'tip-source';
+    source.textContent = 'From ' + tip.source + ' · ' + tip.date;
+
+    box.append(head, text, source);
+
+    if (foundTips().includes(tip.id)) {
+      const done = document.createElement('p');
+      done.className = 'tip-done';
+      done.textContent = '✓ You found and pinned this';
+      box.appendChild(done);
+    } else if (place !== 'Anywhere') {
+      const found = document.createElement('button');
+      found.className = 'small-button';
+      found.textContent = '📍 Found it! Pin the exact spot';
+      found.addEventListener('click', () => startPinningTip(tip));
+      box.appendChild(found);
+    }
+    list.appendChild(box);
+  });
+
+  document.getElementById('place-fine').textContent =
+    'Web tips can be wrong or out of date. Last checked ' + friendlyDay(guide.checked) + '.'
+    + (onMap || place === 'Anywhere' ? '' : ' This place isn\'t one of the map\'s named locations, so it has no marker.');
+  showCard(placeCard);
+}
+
+function friendlyDay(isoDay) {
+  const day = new Date(isoDay + 'T12:00:00');
+  return isNaN(day) ? isoDay : day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+// The Guide card: every place with tips, including ones that have no marker.
+function openGuideCard() {
+  const tips = guideTips();
+  const summary = document.getElementById('guide-summary');
+  const list = document.getElementById('guide-places');
+  list.innerHTML = '';
+
+  if (!guide) {
+    summary.textContent = 'The guide couldn\'t be loaded right now.';
+  } else if (tips.length === 0) {
+    summary.textContent = 'The guide was written for ' + seasonName(guide.season)
+      + '. It needs refreshing for the new season.';
+  } else {
+    const found = tips.filter((tip) => foundTips().includes(tip.id)).length;
+    summary.textContent = tips.length + ' tips from gaming sites for ' + (guide.seasonName || 'this season')
+      + ', last checked ' + friendlyDay(guide.checked) + '. You\'ve found ' + found + '.';
+
+    const places = [...new Set(tips.map((tip) => tip.place))];
+    places.forEach((place) => {
+      const button = document.createElement('button');
+      button.className = 'category-button';
+      const title = document.createElement('span');
+      title.textContent = place === 'Anywhere' ? 'Anywhere on the island' : place;
+      const small = document.createElement('span');
+      small.className = 'small';
+      const count = tipsAt(place).length;
+      small.textContent = count === 1 ? '1 tip' : count + ' tips';
+      button.append(title, small);
+      button.addEventListener('click', () => openPlaceCard(place));
+      list.appendChild(button);
+    });
+  }
+
+  document.getElementById('guide-toggle').textContent = guideOnMap ? 'Hide on map' : 'Show on map';
+  showCard(guideCard);
+}
+
+// "Found it": close the card and wait for a tap on the exact spot.
+function startPinningTip(tip) {
+  closeCards();
+  if (viewSeason !== data.currentSeason) showSeason(data.currentSeason);
+  tipBeingPinned = tip;
+  document.getElementById('tip-name').textContent = tip.name;
+  tipBanner.hidden = false;
+}
+
+function stopPinningTip() {
+  tipBeingPinned = null;
+  tipBanner.hidden = true;
+}
+
+// Called right after the New find card opens: fill it in from the tip.
+function fillFormFromTip() {
+  if (!tipBeingPinned) return;
+  formCategory = TIP_CATEGORY[tipBeingPinned.kind] || 'other';
+  formStatus = 'confirmed';
+  noteInput.value = tipBeingPinned.name.slice(0, 80);
+  showFormChoices();
+}
+
+function markTipFound(tip) {
+  if (!foundTips().includes(tip.id)) foundTips().push(tip.id);
+  // (savePin saves everything and redraws right after this)
+}
+
+document.getElementById('guide-button').addEventListener('click', openGuideCard);
+document.getElementById('guide-close').addEventListener('click', closeCards);
+document.getElementById('place-close').addEventListener('click', closeCards);
+document.getElementById('tip-cancel').addEventListener('click', stopPinningTip);
+document.getElementById('guide-toggle').addEventListener('click', () => {
+  guideOnMap = !guideOnMap;
+  drawGuideLayer();
+  closeCards();
+});
+
+loadGuide();
 
 // ---------- Backup: Export and Import ----------
 const backupCard = document.getElementById('backup-card');

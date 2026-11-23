@@ -907,3 +907,51 @@ main {
   letter-spacing: 1px;
   color: var(--text-dim);
 }
+
+/* ---------- Guide: web tips for each place ---------- */
+/* A small 📖 tag that floats just above a place on the map */
+.guide-marker {
+  position: absolute;
+  transform: translate(-50%, -115%);
+  min-width: 44px;
+  min-height: 36px;
+  padding: 0 8px;
+  border: 2px solid var(--accent);
+  border-radius: 18px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.6);
+}
+.guide-marker.done { border-color: var(--text-dim); color: var(--text-dim); }
+
+.tips-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 50vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tip {
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--background);
+}
+.tip .tip-head { margin: 0; font-size: 17px; font-weight: 800; }
+.tip .tip-kind {
+  margin-right: 8px;
+  padding: 2px 8px;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.tip .tip-text { margin: 6px 0; font-size: 16px; line-height: 1.4; }
+.tip .tip-source { margin: 0 0 8px; font-size: 13px; color: var(--text-dim); }
+.tip .small-button { min-height: 44px; padding: 0; }
+.tip .tip-done { margin: 0; font-size: 15px; font-weight: 700; color: #7be06a; }

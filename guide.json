@@ -1,0 +1,75 @@
+{
+  "about": "Web tips for the What's here guide. Each tip is tied to a named place. 'place' must match a location name from the map service exactly to get a marker on the map; other places still show in the Guide list. Written in our own words from the sources named.",
+  "season": "43",
+  "seasonName": "Treasure Hunters",
+  "checked": "2026-11-23",
+  "tips": [
+    { "id": "loguetown-luffy", "place": "Loguetown", "kind": "NPC", "name": "Luffy",
+      "text": "Luffy is somewhere in Loguetown. Talk to him for a free Rift back into the sky.",
+      "source": "TechWiser", "date": "Nov 14" },
+    { "id": "loguetown-usopp", "place": "Loguetown", "kind": "NPC", "name": "Usopp",
+      "text": "Usopp is also in Loguetown, and gives a free Rift too.",
+      "source": "TechWiser", "date": "Nov 14" },
+    { "id": "loguetown-vault", "place": "Loguetown", "kind": "Vault", "name": "Loguetown vault",
+      "text": "A vault here is said to have a Rare Chest holding Usopp's Galaxy Slingshot (Mythic). Another site says the Slingshot only comes from random chests, so check this one yourself.",
+      "source": "Dexerto", "date": "Nov 16" },
+
+    { "id": "windmill-jones", "place": "Windmill Village", "kind": "NPC", "name": "Buccaneer Brigand Jones",
+      "text": "Slightly south of where the place name sits on the map. He can be hired as a Heavy Specialist.",
+      "source": "Yahoo Tech", "date": "Nov 2026" },
+    { "id": "windmill-nami", "place": "Windmill Village", "kind": "NPC", "name": "Nami",
+      "text": "On the beach south of the village. Free Rift.",
+      "source": "Yahoo Tech", "date": "Nov 2026" },
+
+    { "id": "arlong-zoro", "place": "Arlong Park", "kind": "NPC", "name": "Zoro",
+      "text": "Zoro is at Arlong Park, on the western tip of the map. Free Rift.",
+      "source": "Yahoo Tech", "date": "Nov 2026" },
+
+    { "id": "busybay-sanji", "place": "Busy Bay", "kind": "NPC", "name": "Sanji",
+      "text": "On the eastern part of the southern island. Free Rift.",
+      "source": "Yahoo Tech", "date": "Nov 2026" },
+
+    { "id": "lantern-hope", "place": "Lantern Landing", "kind": "NPC", "name": "Treasure Hunter Hope",
+      "text": "Hope is at Lantern Landing and can be hired as a Scout Specialist.",
+      "source": "TechWiser", "date": "Nov 14" },
+
+    { "id": "rocky-boss", "place": "The $.$. Rocky", "kind": "Boss", "name": "A$AP Rocky boss",
+      "text": "His starting spot changes each match: often the northern part away from the yacht, or on the ship's deck. Beating him can drop the Shock Rocket.",
+      "source": "Gamer.org", "date": "Nov 3" },
+    { "id": "rocky-charlotte", "place": "The $.$. Rocky", "kind": "NPC", "name": "Charlotte-Sensei",
+      "text": "Right by where the ship is docked, not on the ship itself. She can be hired as a Supply Specialist.",
+      "source": "Yahoo Tech", "date": "Nov 2026" },
+    { "id": "rocky-fragment", "place": "The $.$. Rocky", "kind": "Other", "name": "Map Fragment",
+      "text": "The first Map Fragment is on the lower decks at the back (stern) of the ship.",
+      "source": "Timesaver", "date": "Nov 7" },
+
+    { "id": "buggy-boss", "place": "Buggy's Beachhead", "kind": "Boss", "name": "Buggy boss",
+      "text": "Beat the Buggy boss for a chance at the Special Buggy Ball (Mythic). This spot replaced Loot Lagoon on Nov 12.",
+      "source": "Dexerto", "date": "Nov 16" },
+
+    { "id": "rubber-miku", "place": "Rubber Resort", "kind": "Other", "name": "Miku and Teto",
+      "text": "Hatsune Miku and Kasane Teto took over this island. Sites disagree on whether they are a boss fight, and one now calls the place Friendship Villa.",
+      "source": "Dexerto and Gamer.org", "date": "Nov 16" },
+
+    { "id": "fort-uzi", "place": "Fortune's Fort", "kind": "Boss", "name": "Lil Uzi Vert boss",
+      "text": "A walled fort in the north-east, also called Lil' Uzi's Stronghold. Beating Lil Uzi Vert can drop his Lil' SMG.",
+      "source": "Dexerto", "date": "Nov 16" },
+    { "id": "fort-kawaii", "place": "Fortune's Fort", "kind": "NPC", "name": "Kawaii Team Leader",
+      "text": "The only NPC in the north. She can be hired as a Medic Specialist.",
+      "source": "Yahoo Tech", "date": "Nov 2026" },
+
+    { "id": "oscar-boss", "place": "Oscar's Ship", "kind": "Boss", "name": "Oscar boss",
+      "text": "Oscar arrived as a boss on Nov 22 and drops the Modular Frenzy Auto Shotgun. The articles don't say where his ship is.",
+      "source": "Gamer.org", "date": "Nov 3" },
+
+    { "id": "any-gumgum", "place": "Anywhere", "kind": "Mythic", "name": "Gum-Gum Fruit",
+      "text": "Appears at a random spot once the first storm circle forms, and is marked on the map for every player.",
+      "source": "Dexerto", "date": "Nov 16" },
+    { "id": "any-flame", "place": "Anywhere", "kind": "Mythic", "name": "Flame-Flame Fruit",
+      "text": "Appears the same way as the Gum-Gum Fruit. Stay out of water while carrying it.",
+      "source": "Dexerto", "date": "Nov 16" },
+    { "id": "any-rift", "place": "Anywhere", "kind": "Other", "name": "Free Rifts",
+      "text": "Every NPC this season gives a free Rift, which launches you into the sky so you can glide somewhere new.",
+      "source": "TechWiser", "date": "Nov 14" }
+  ]
+}

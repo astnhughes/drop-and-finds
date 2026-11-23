@@ -161,6 +161,8 @@ const dropMarker = document.getElementById('drop-marker');
 const dropMarkerLabel = document.getElementById('drop-marker-label');
 const dropBanner = document.getElementById('drop-banner');
 const dropName = document.getElementById('drop-name');
+let currentDrop = null; // the picked drop spot: { name, across, down } (position on the picture)
+let routeOn = false;    // is the loot route showing?
 
 // The service gives each spot in GAME coordinates (big numbers like 55330).
 // These numbers turn them into "how far across / down the picture", from 0 to 1.
@@ -188,6 +190,9 @@ function pick() {
   dropMarkerLabel.textContent = chosenSpot.name;
   dropMarker.hidden = false;
 
+  currentDrop = { name: chosenSpot.name, across: place.across, down: place.down };
+  routeOn = false; // a new drop starts without a route showing
+  drawRoute();
   dropName.textContent = chosenSpot.name;
   // On a brand-new map the three numbers above haven't been re-measured yet, so say so.
   document.getElementById('drop-caution').hidden = data.currentSeason === MEASURED_SEASON;
@@ -200,6 +205,9 @@ function pick() {
 function clearDrop() {
   dropMarker.hidden = true;
   dropBanner.hidden = true;
+  currentDrop = null;
+  routeOn = false;
+  drawRoute();
 }
 
 pickButton.addEventListener('click', pick);
@@ -342,6 +350,7 @@ function drawPins() {
   }
 
   drawFilterBar();
+  drawRoute(); // keep the loot route in step with the pins
 }
 
 // The row of filter buttons: "All" plus one per category, each with its pin count.
@@ -685,6 +694,139 @@ document.querySelectorAll('.reach-chip').forEach((chip) => {
     showBusBanner();
     drawBusLayer();
   });
+});
+
+// ---------- Loot route: the shortest path through nearby pins ----------
+// After Pick, "Loot route" finds Max's pins near the drop spot and draws the
+// shortest walk through them, starting where he lands. Stops are numbered 1, 2, 3...
+// It uses whichever pins are showing, so filter to Chests first for a chest run.
+const routeLayer = document.getElementById('route-layer');
+const routeBadges = document.getElementById('route-badges');
+const routeNote = document.getElementById('route-note');
+const routeButton = document.getElementById('route-button');
+const routeRangeButton = document.getElementById('route-range');
+
+// How far from the drop spot a pin can be and still be on the route,
+// as a fraction of the map picture's width.
+const ROUTE_RANGES = [
+  { name: 'Near', reach: 0.06 },
+  { name: 'Medium', reach: 0.10 },
+  { name: 'Far', reach: 0.16 },
+];
+const ROUTE_MAX_STOPS = 10;
+let routeRange = 1; // which of the three ranges is picked (starts on Medium)
+
+function gap(a, b) {
+  return Math.hypot(a.across - b.across, a.down - b.down);
+}
+
+function pathLength(points) {
+  let total = 0;
+  for (let i = 1; i < points.length; i += 1) total += gap(points[i - 1], points[i]);
+  return total;
+}
+
+// Work out the order to visit the stops in so the walk is as short as possible.
+// With up to 10 stops there are millions of possible orders, far too many to try one
+// by one. The trick: build up from small to big. For every GROUP of stops and every
+// stop it could END on, remember the shortest way to visit that group ending there.
+// A bigger group's answer is just a smaller group's answer plus one more step.
+// (Programmers call this "dynamic programming".) It always finds the true shortest.
+function bestOrder(start, stops) {
+  const count = stops.length;
+  if (count <= 1) return stops.slice();
+
+  // A group of stops is written as a number whose binary digits say who's in it:
+  // 5 is 101 in binary, meaning stops 0 and 2.
+  const groups = 1 << count;
+  const shortest = Array.from({ length: groups }, () => new Array(count).fill(Infinity));
+  const cameFrom = Array.from({ length: groups }, () => new Array(count).fill(-1));
+
+  for (let end = 0; end < count; end += 1) shortest[1 << end][end] = gap(start, stops[end]);
+
+  for (let group = 1; group < groups; group += 1) {
+    for (let end = 0; end < count; end += 1) {
+      if (!(group & (1 << end)) || shortest[group][end] === Infinity) continue;
+      for (let next = 0; next < count; next += 1) {
+        if (group & (1 << next)) continue; // already visited
+        const bigger = group | (1 << next);
+        const length = shortest[group][end] + gap(stops[end], stops[next]);
+        if (length < shortest[bigger][next]) {
+          shortest[bigger][next] = length;
+          cameFrom[bigger][next] = end;
+        }
+      }
+    }
+  }
+
+  // Find the best place to finish, then walk backwards to read off the order.
+  let group = groups - 1;
+  let end = 0;
+  for (let i = 1; i < count; i += 1) if (shortest[group][i] < shortest[group][end]) end = i;
+  const order = [];
+  while (end !== -1) {
+    order.unshift(stops[end]);
+    const before = cameFrom[group][end];
+    group &= ~(1 << end);
+    end = before;
+  }
+  return order;
+}
+
+// Draw the route (or clear it), and say what happened under the banner.
+function drawRoute() {
+  routeLayer.innerHTML = '';
+  routeBadges.innerHTML = '';
+  routeRangeButton.hidden = !routeOn;
+  routeButton.textContent = routeOn ? 'Hide route' : '🧭 Loot route';
+  routeNote.hidden = !routeOn;
+  if (!routeOn || !currentDrop || viewSeason !== data.currentSeason) return;
+
+  const range = ROUTE_RANGES[routeRange];
+  routeRangeButton.textContent = 'Range: ' + range.name;
+
+  // The pins that are showing (the category filter applies) and close enough to the drop.
+  const showing = pins.filter((pin) => filter === 'all' || pin.category === filter);
+  const nearby = showing
+    .filter((pin) => gap(currentDrop, pin) <= range.reach)
+    .sort((a, b) => gap(currentDrop, a) - gap(currentDrop, b))
+    .slice(0, ROUTE_MAX_STOPS);
+
+  if (nearby.length === 0) {
+    routeNote.textContent = (showing.length === 0 ? 'No pins to route through yet.' : 'No pins within ' + range.name.toLowerCase() + ' range of ' + currentDrop.name + '.')
+      + ' Drop pins here as you find things, or try a wider range.';
+    return;
+  }
+
+  const order = bestOrder(currentDrop, nearby);
+  const at = (value) => (value * 1000).toFixed(1); // the drawing area is 1000 x 1000
+  const line = [currentDrop, ...order].map((point) => at(point.across) + ',' + at(point.down)).join(' ');
+  routeLayer.innerHTML = `<polyline class="route-line-back" points="${line}"/><polyline class="route-line" points="${line}"/>`;
+
+  order.forEach((pin, index) => {
+    const badge = document.createElement('div');
+    badge.className = 'route-badge';
+    badge.textContent = index + 1;
+    badge.style.left = (pin.across * 100) + '%';
+    badge.style.top = (pin.down * 100) + '%';
+    routeBadges.appendChild(badge);
+  });
+
+  // Game distance: picture fraction -> game units (centimetres) -> metres.
+  const metres = pathLength([currentDrop, ...order]) / MAP_SCALE / 100;
+  routeNote.textContent = (order.length === 1 ? '1 stop' : order.length + ' stops')
+    + ' · about ' + (Math.round(metres / 10) * 10) + ' m of running'
+    + (filter === 'all' ? '' : ' · ' + categoryFor(filter).name + ' only')
+    + (data.currentSeason === MEASURED_SEASON ? '' : ' (new map: distance may be off)');
+}
+
+routeButton.addEventListener('click', () => {
+  routeOn = !routeOn;
+  drawRoute();
+});
+routeRangeButton.addEventListener('click', () => {
+  routeRange = (routeRange + 1) % ROUTE_RANGES.length;
+  drawRoute();
 });
 
 // ---------- The pin card (new pin or edit pin) ----------

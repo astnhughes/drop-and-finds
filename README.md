@@ -47,6 +47,10 @@ The app reads the game's version number (like 43.10). When the big number goes u
 
 Every time the app opens with internet, `sw.js` fetches the newest version and saves a copy. With no internet, it uses the saved copy.
 
+### Loot route
+
+After Pick, **Loot route** takes the pins near the drop spot and draws the shortest walk through them, starting where you land. It respects the category filter, so filtering to Chests first gives a chest run. The order is worked out exactly (see `bestOrder` in `app.js`), not guessed.
+
 ### Guide (web tips)
 
 `guide.json` holds tips gathered from gaming articles: which NPCs, bosses and vaults are at which named place. Places that match a location from the map service get a 📖 marker on the map. A tip only says which place, so when the real thing is found in the game, "Found it" turns it into an exact pin.

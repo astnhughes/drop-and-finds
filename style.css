@@ -955,3 +955,32 @@ main {
 .tip .tip-source { margin: 0 0 8px; font-size: 13px; color: var(--text-dim); }
 .tip .small-button { min-height: 44px; padding: 0; }
 .tip .tip-done { margin: 0; font-size: 15px; font-weight: 700; color: #7be06a; }
+
+/* ---------- Loot route ---------- */
+.route-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 7;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  stroke-dasharray: 2 14;
+}
+.route-line-back { fill: none; stroke: var(--background); stroke-width: 11; stroke-linejoin: round; stroke-linecap: round; opacity: 0.6; }
+
+/* The stop number, tucked onto the top-right corner of its pin */
+.route-badge {
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  margin: -30px 0 0 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--accent-text);
+  border: 2px solid var(--background);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+  pointer-events: none;
+}
+.drop-banner { flex-wrap: wrap; justify-content: center; }

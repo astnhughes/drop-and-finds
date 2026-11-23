@@ -878,3 +878,32 @@ main {
   color: var(--text-dim);
   font-size: 20px;
 }
+
+/* ---------- Career stats ---------- */
+.career-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.news-screen .hint { text-align: left; }
+.career-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.career-grid:empty { display: none; }
+.stat-tile {
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--panel);
+}
+.stat-tile .number { margin: 0; font-size: 30px; font-weight: 800; color: var(--accent); }
+.stat-tile .label {
+  margin: 2px 0 0;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-dim);
+}

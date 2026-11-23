@@ -22,6 +22,10 @@ self.addEventListener('fetch', (event) => {
   const mapService = request.url.startsWith(MAP_SERVICE);
   if (!ours && !mapService) return; // anything else: leave it alone
 
+  // Player stats are sent with a private key, so the helper keeps its hands off:
+  // it doesn't touch the request and never keeps a copy.
+  if (request.url.includes('/v2/stats/')) return;
+
   // Item shop pictures: there are hundreds and they change daily, so we don't keep copies.
   if (request.url.startsWith(SERVICE_PICTURES) && !request.url.startsWith(MAP_PICTURES)) return;
 

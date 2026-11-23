@@ -1415,6 +1415,7 @@ function loadNewsScreen() {
   newsLoadedAt = Date.now();
   loadServerStatus();
   loadNews();
+  loadCareer();
 }
 
 function addLine(parent, text) {
@@ -1545,6 +1546,197 @@ async function loadNews() {
     showAppBug(error);
   }
 }
+
+// ---------- Career stats (wins, eliminations and so on) ----------
+// This is the one part of the app that needs a key. The key is typed in once on the
+// device (Set up) and kept ONLY in this device's storage, separate from pins and the
+// wish list, so it never ends up in a backup file or in the app's code.
+const STATS_URL = 'https://fortnite-api.com/v2/stats/br/v2';
+const CAREER_SETUP_KEY = 'drop-and-finds-stats-setup'; // where the name, platform and key are kept
+
+const careerGrid = document.getElementById('career-grid');
+const careerNote = document.getElementById('career-note');
+const careerWeek = document.getElementById('career-week');
+const careerCard = document.getElementById('career-card');
+const careerNameInput = document.getElementById('career-name');
+const careerKeyInput = document.getElementById('career-key');
+let careerWindow = 'lifetime'; // 'lifetime' (All time) or 'season'
+let careerPlatform = 'epic';   // what's picked on the Set up card
+
+function readCareerSetup() {
+  try {
+    const setup = JSON.parse(localStorage.getItem(CAREER_SETUP_KEY));
+    if (setup && typeof setup.name === 'string' && typeof setup.key === 'string') return setup;
+  } catch (error) {
+    // nothing saved yet
+  }
+  return null;
+}
+
+function showCareerChips() {
+  document.querySelectorAll('.window-chip').forEach((chip) => {
+    chip.classList.toggle('selected', chip.dataset.window === careerWindow);
+  });
+}
+
+function showPlatformButtons() {
+  document.querySelectorAll('.platform-button').forEach((button) => {
+    button.classList.toggle('selected', button.dataset.platform === careerPlatform);
+  });
+}
+
+function openCareerSetup() {
+  const setup = readCareerSetup();
+  careerNameInput.value = setup ? setup.name : '';
+  careerKeyInput.value = setup ? setup.key : '';
+  careerPlatform = setup ? setup.platform : 'epic';
+  showPlatformButtons();
+  document.getElementById('career-remove').hidden = !setup;
+  showCard(careerCard);
+}
+
+function saveCareerSetup() {
+  const name = careerNameInput.value.trim();
+  const key = careerKeyInput.value.trim();
+  if (!name || !key) return;
+  try {
+    localStorage.setItem(CAREER_SETUP_KEY, JSON.stringify({ name, platform: careerPlatform, key }));
+  } catch (error) {
+    showProblem('Could not save on this device. Storage may be full or turned off.', error);
+  }
+  closeCards();
+  loadCareer();
+}
+
+function removeCareerSetup() {
+  localStorage.removeItem(CAREER_SETUP_KEY);
+  closeCards();
+  loadCareer();
+}
+
+function addStatTile(number, label) {
+  const tile = document.createElement('div');
+  tile.className = 'stat-tile';
+  const big = document.createElement('p');
+  big.className = 'number';
+  big.textContent = number;
+  const small = document.createElement('p');
+  small.className = 'label';
+  small.textContent = label;
+  tile.append(big, small);
+  careerGrid.appendChild(tile);
+}
+
+// Once a day, jot down the all-time totals. Comparing today with a few days ago
+// gives "this week: +3 wins". Only plain numbers are kept; never the key.
+function noteSnapshot(overall) {
+  if (!Array.isArray(data.statSnapshots)) data.statSnapshots = [];
+  const today = new Date().toISOString().slice(0, 10);
+  const entry = { day: today, wins: overall.wins, kills: overall.kills, matches: overall.matches };
+  const last = data.statSnapshots[data.statSnapshots.length - 1];
+  if (last && last.day === today) data.statSnapshots[data.statSnapshots.length - 1] = entry;
+  else data.statSnapshots.push(entry);
+  data.statSnapshots = data.statSnapshots.slice(-120);
+  saveData();
+}
+
+function showWeek() {
+  const snaps = Array.isArray(data.statSnapshots) ? data.statSnapshots : [];
+  const latest = snaps[snaps.length - 1];
+  if (!latest) { careerWeek.hidden = true; return; }
+  const weekAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  const earlier = snaps.find((snap) => snap.day >= weekAgo && snap.day < latest.day);
+  if (!earlier) { careerWeek.hidden = true; return; }
+  const plus = (n) => (n >= 0 ? '+' + n : String(n));
+  careerWeek.textContent = 'Since ' + new Date(earlier.day + 'T12:00:00').toLocaleDateString(undefined, { weekday: 'long' })
+    + ': ' + plus(latest.wins - earlier.wins) + ' wins, '
+    + plus(latest.kills - earlier.kills) + ' eliminations, '
+    + plus(latest.matches - earlier.matches) + ' matches';
+  careerWeek.hidden = false;
+}
+
+async function loadCareer() {
+  showCareerChips();
+  const setup = readCareerSetup();
+  if (!setup) {
+    careerGrid.innerHTML = '';
+    careerWeek.hidden = true;
+    careerNote.textContent = 'Tap Set up to show wins, eliminations and more. It needs a player name and a free key.';
+    return;
+  }
+
+  let response;
+  try {
+    const address = STATS_URL + '?name=' + encodeURIComponent(setup.name)
+      + '&accountType=' + encodeURIComponent(setup.platform) + '&timeWindow=' + careerWindow;
+    response = await fetch(address, { headers: { Authorization: setup.key } });
+  } catch (error) {
+    careerNote.textContent = 'Can\'t reach the stats service right now.';
+    return;
+  }
+
+  if (!response.ok) {
+    careerGrid.innerHTML = '';
+    const reasons = {
+      401: 'The key didn\'t work. Tap Set up and paste it again.',
+      403: 'This player\'s stats are private. In Fortnite, open Settings, then Account and Privacy, and turn on "Show on Career Leaderboard".',
+      404: 'No player with that name was found. Check the spelling and which platform it\'s from in Set up.',
+      429: 'Too many requests. Wait a minute and try again.',
+    };
+    careerNote.textContent = reasons[response.status] || 'The stats service had a problem (code ' + response.status + ').';
+    return;
+  }
+
+  try {
+    const player = (await response.json()).data;
+    const overall = player.stats && player.stats.all && player.stats.all.overall;
+    careerGrid.innerHTML = '';
+    if (!overall) {
+      careerNote.textContent = 'No matches found for ' + (careerWindow === 'season' ? 'this season' : 'this player') + ' yet.';
+      return;
+    }
+
+    const whole = (n) => Math.round(n).toLocaleString();
+    const tiles = [
+      [overall.wins, 'Wins', whole],
+      [overall.winRate, 'Win rate', (n) => n.toFixed(1) + '%'],
+      [overall.matches, 'Matches', whole],
+      [overall.kills, 'Eliminations', whole],
+      [overall.kd, 'K/D', (n) => n.toFixed(2)],
+      [overall.top10, 'Top 10s', whole],
+      [overall.minutesPlayed === undefined ? undefined : overall.minutesPlayed / 60, 'Hours played', whole],
+      [player.battlePass && player.battlePass.level, 'Battle Pass level', whole],
+    ];
+    tiles.forEach(([value, label, format]) => {
+      if (typeof value === 'number' && !isNaN(value)) addStatTile(format(value), label);
+    });
+
+    careerNote.textContent = (player.account && player.account.name ? player.account.name : setup.name)
+      + ' · ' + (careerWindow === 'season' ? 'this season' : 'all time');
+
+    if (careerWindow === 'lifetime' && typeof overall.wins === 'number') noteSnapshot(overall);
+    showWeek();
+  } catch (error) {
+    showAppBug(error);
+  }
+}
+
+document.getElementById('career-setup').addEventListener('click', openCareerSetup);
+document.getElementById('career-save').addEventListener('click', saveCareerSetup);
+document.getElementById('career-remove').addEventListener('click', removeCareerSetup);
+document.getElementById('career-cancel').addEventListener('click', closeCards);
+document.querySelectorAll('.platform-button').forEach((button) => {
+  button.addEventListener('click', () => {
+    careerPlatform = button.dataset.platform;
+    showPlatformButtons();
+  });
+});
+document.querySelectorAll('.window-chip').forEach((chip) => {
+  chip.addEventListener('click', () => {
+    careerWindow = chip.dataset.window;
+    loadCareer();
+  });
+});
 
 // ---------- Shop screen: today's item shop and the wish list ----------
 const SHOP_URL = 'https://fortnite-api.com/v2/shop';

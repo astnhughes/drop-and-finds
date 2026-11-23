@@ -17,7 +17,7 @@
   <link rel="icon" href="icons/icon-192.png">
   <meta name="theme-color" content="#12141c">
 
-  <link rel="stylesheet" href="style.css?v=22">
+  <link rel="stylesheet" href="style.css?v=23">
 </head>
 <body>
   <header class="top-bar">
@@ -131,6 +131,19 @@
         </div>
       </div>
 
+      <!-- Career stats (needs the one-time Set up) -->
+      <div class="career-head">
+        <h2 class="section-title">My Fortnite stats</h2>
+        <div class="filter-bar">
+          <button class="chip window-chip" data-window="season">This season</button>
+          <button class="chip window-chip" data-window="lifetime">All time</button>
+          <button id="career-setup" class="chip season-chip">Set up</button>
+        </div>
+      </div>
+      <p id="career-note" class="hint"></p>
+      <div id="career-grid" class="career-grid"></div>
+      <p id="career-week" class="notice" hidden></p>
+
       <h2 class="section-title">Today in Fortnite</h2>
       <div id="news-list" class="news-list"></div>
       <p id="news-note" class="hint"></p>
@@ -238,6 +251,30 @@
         <button id="stats-close" class="big-button primary">Close</button>
       </div>
     </div>
+
+    <!-- The one-time set up for career stats -->
+    <div id="career-card" class="card" hidden>
+      <h2>Stats set up</h2>
+      <p class="card-label">Player name</p>
+      <input id="career-name" class="note-input" type="text" maxlength="40" placeholder="Exactly as it appears in the game"
+             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <p class="card-label">That name is from</p>
+      <div class="status-buttons">
+        <button class="status-button platform-button" data-platform="epic">Epic</button>
+        <button class="status-button platform-button" data-platform="psn">PlayStation</button>
+        <button class="status-button platform-button" data-platform="xbl">Xbox</button>
+      </div>
+      <p class="card-label">Key from fortnite-api.com</p>
+      <input id="career-key" class="note-input" type="password" placeholder="Paste the key here"
+             autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+      <p class="fine-print">The name and key are saved only on this device. They are never put in a backup file
+        and are only ever sent to fortnite-api.com.</p>
+      <div class="card-actions">
+        <button id="career-remove" class="big-button danger">Remove</button>
+        <button id="career-cancel" class="big-button">Cancel</button>
+        <button id="career-save" class="big-button primary">Save</button>
+      </div>
+    </div>
   </div>
 
   <!-- The two big buttons at the bottom that switch screens -->
@@ -248,6 +285,6 @@
     <button class="tab" data-screen="screen-shop">Shop</button>
   </nav>
 
-  <script src="app.js?v=22"></script>
+  <script src="app.js?v=23"></script>
 </body>
 </html>
